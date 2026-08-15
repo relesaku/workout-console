@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101418">
+<meta name="theme-color" content="#0B0B0C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Console">
@@ -13,11 +13,19 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ===== Iron =====
+   地の色は完全な無彩色（青みを入れない）。強調は白のみ。
+   色が付いている場所は「意味のある色」だけ = 部位配分・プレート・警告・自己ベスト。 */
 :root{
-  --bg:#101418; --surface:#191E24; --surface2:#212831; --line:#2C3540;
-  --text:#E7ECF1; --dim:#8B98A6; --dimmer:#5E6B78;
+  --bg:#0B0B0C; --surface:#141417; --surface2:#1D1D21; --line:#2B2B31;
+  --text:#FAFAFA; --dim:#8A8A91; --dimmer:#5A5A60;
+  --field:#050506;                                  /* 入力欄・バーの地 */
+  --hi:#FFFFFF; --hi-bg:#232327; --hi-bd:#43434B;   /* 強調（選択・進捗・完了） */
+  --hot:#FF4D1C;                                    /* 自己ベスト・今日。1点だけ使う */
+  --amber:#F0B429; --amber-bd:#4A3C14; --amber-bg:#1E1A12;   /* 警告のみ */
+  --green:#35B57E; --green-bd:#26443A; --green-bg:#12211C;   /* 目安に対する超過 */
+  --red:#E23B3B; --red-bd:#4A2A2E;
   --p25:#E23B3B; --p20:#2F6FE4; --p15:#F0B429; --p10:#35B57E; --p5:#DDE3E9; --p2:#9AA6B2;
-  --blue:#2F6FE4; --red:#E23B3B; --amber:#F0B429; --green:#35B57E;
   --disp:"Barlow Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --body:"Barlow Semi Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
 }
@@ -27,8 +35,8 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
 button{cursor:pointer;border:none;background:none}
 h3{margin:0;font-family:var(--disp);font-weight:600}
-header{position:sticky;top:0;z-index:30;background:#141920;border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
-header::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;
+header{position:sticky;top:0;z-index:30;background:#0F0F11;border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+header::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.06;
   background:repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 5px),repeating-linear-gradient(-45deg,#fff 0 1px,transparent 1px 5px)}
 .hd{display:flex;align-items:baseline;gap:10px;position:relative;z-index:1}
 .hd b{font-family:var(--disp);font-size:19px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
@@ -41,24 +49,25 @@ main{padding:14px;max-width:640px;margin:0 auto}
 .dim{color:var(--dim)} .small{font-size:13px} .xs{font-size:11.5px;letter-spacing:.04em}
 .num{font-family:var(--disp);font-variant-numeric:tabular-nums;font-weight:600}
 .btn{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:14px;font-weight:500}
-.btn:active{background:#2A323C}
-.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:active{background:#26262B}
+.btn.pri{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:600}
 .btn.gh{background:transparent}.btn.sm{padding:6px 10px;font-size:13px}
-.btn.wide{width:100%;text-align:center}.btn.danger{color:var(--red);border-color:#4A2A2E}
-input,select,textarea{background:#0D1116;border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:1px}
+.btn.wide{width:100%;text-align:center}.btn.danger{color:var(--red);border-color:var(--red-bd)}
+input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--hi);outline-offset:1px}
 label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin:0 0 4px;font-family:var(--disp);font-weight:600}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:3px 9px;font-size:12px;color:var(--dim)}
-.chip.up{color:var(--green);border-color:#1E4A3B;background:#12241E}
-.chip.dn{color:var(--amber);border-color:#4A3C14;background:#241E10}
-.chip.pr{color:#fff;background:var(--red);border-color:var(--red);font-weight:600}
+.chip.up{color:var(--text);border-color:var(--hi-bd);background:var(--hi-bg)}
+.chip.dn{color:var(--dim);border-color:var(--line)}
+.chip.warn{color:var(--amber);border-color:var(--amber-bd);background:var(--amber-bg)}
+.chip.pr{color:#160500;background:var(--hot);border-color:var(--hot);font-weight:600}
 .days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.days::-webkit-scrollbar{display:none}
 .day{flex:0 0 auto;width:52px;text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 0;background:var(--surface)}
 .day .d{font-size:11px;color:var(--dim)}.day .n{font-family:var(--disp);font-size:20px;font-weight:600;line-height:1.1}
-.day.sel{border-color:var(--blue);background:#12233F}
-.day.has::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--green);margin:3px auto 0}
-.day.today .d{color:var(--amber)}
+.day.sel{border-color:var(--hi);background:var(--hi-bg)}
+.day.has::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--dim);margin:3px auto 0}
+.day.today .d{color:var(--hot)}
 .ex{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden}
 .ex .top{padding:11px 12px 9px;border-bottom:1px solid var(--line)}
 .ex .name{font-family:var(--disp);font-size:19px;font-weight:600}
@@ -67,41 +76,41 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .setrow .idx{font-size:12px}
 .mult{border:1px solid var(--line);border-radius:8px;height:44px;display:flex;align-items:center;justify-content:center;
   font-family:var(--disp);font-weight:600;font-size:15px;color:var(--dimmer)}
-.mult.on{background:#12233F;border-color:var(--blue);color:var(--text)}
+.mult.on{background:var(--hi-bg);border-color:var(--hi-bd);color:var(--text)}
 .setrow.head span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);font-family:var(--disp);font-weight:600;text-align:center}
 .setrow .idx{font-family:var(--disp);font-weight:600;color:var(--dimmer);text-align:center}
 .setrow input{text-align:center;padding:11px 4px;font-family:var(--disp);font-size:18px;font-weight:600}
-.setrow.done input{color:var(--green);border-color:#204438}
+.setrow.done input{border-color:var(--hi-bd)}
 /* 入力が片方だけ／✓だけ = 集計に入らない行 */
-.setrow.warn{background:#1E1A12;border-radius:8px}
-.setrow.warn input{color:var(--amber);border-color:#4A3C14}
+.setrow.warn{background:var(--amber-bg);border-radius:8px}
+.setrow.warn input{color:var(--amber);border-color:var(--amber-bd)}
 .tick{border:1px solid var(--line);border-radius:8px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--dimmer)}
-.tick.on{background:#12241E;border-color:#1E4A3B;color:var(--green)}
+.tick.on{background:transparent;border-color:var(--hi);color:var(--hi);font-weight:700}
 .xbtn{flex:0 0 auto;width:40px;height:40px;border:1px solid var(--line);border-radius:9px;
   display:flex;align-items:center;justify-content:center;color:var(--dimmer);font-size:15px}
 .exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
 .plates{display:flex;gap:3px;align-items:center;flex-wrap:wrap;padding:0 12px 9px}
-.pl{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:11px;font-weight:700;color:#0B0E12}
+.pl{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:11px;font-weight:700;color:#0B0B0C}
 .pl.b{border-radius:50%}
-.bar{height:8px;border-radius:4px;background:#0D1116;overflow:hidden;border:1px solid var(--line)}
-.bar>i{display:block;height:100%;background:var(--blue)}
+.bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
+.bar>i{display:block;height:100%;background:var(--hi)}
 /* 寄与率 */
 .cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
-.crb{position:relative;height:20px;border-radius:5px;background:#0D1116;border:1px solid var(--line);overflow:hidden}
-.crb .f{position:absolute;left:0;top:0;bottom:0;background:var(--blue);opacity:.9}
+.crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
+.crb .f{position:absolute;left:0;top:0;bottom:0;background:var(--hi);opacity:.9}
 .crb .t{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--amber);opacity:.9}
 .cr .v{text-align:right;font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
 .stack{display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
 .stack i{display:block}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:#12171CF2;backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:#0A0A0BF2;backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;padding:9px 0 10px;color:var(--dimmer);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav button .t{font-size:10.5px;letter-spacing:.08em;font-family:var(--disp);font-weight:600}
 nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-nav button.on{color:var(--text)}nav button.on svg{stroke:var(--blue)}
-.tip{border-left:2px solid var(--blue);background:#131A24;padding:8px 11px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:8px}
-.tip.warn{border-color:var(--amber);background:#1E1A12}
-.tip.good{border-color:var(--green);background:#121E1A}
+nav button.on{color:var(--text)}nav button.on svg{stroke:var(--hi)}
+.tip{border-left:2px solid var(--hi);background:var(--surface);padding:8px 11px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:8px}
+.tip.warn{border-color:var(--amber);background:var(--amber-bg)}
+.tip.good{border-color:var(--green);background:var(--green-bg)}
 .empty{text-align:center;color:var(--dim);padding:26px 14px;font-size:14px}
 .sheet{position:fixed;inset:0;z-index:60;background:#000A;display:flex;align-items:flex-end}
 .sheet .in{background:var(--surface);width:100%;max-height:86vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
@@ -301,7 +310,7 @@ function exFoot(en){
   let c=`<span class="chip">${Math.round(cv)}kg</span>${ce?`<span class="chip">推定1RM ${r1(ce)}kg</span>`:''}`;
   if(prev&&cv>0) c+=`<span class="chip ${cv>=pv?'up':'dn'}">前回比 ${cv>=pv?'+':''}${Math.round(cv-pv)}kg</span>`;
   if(ce>rec+.01&&ce>0) c+=`<span class="chip pr">自己ベスト</span>`;
-  if(pt) c+=`<span class="chip dn">未集計 ${pt}行</span>`;
+  if(pt) c+=`<span class="chip warn">未集計 ${pt}行</span>`;
   return c;
 }
 function sumBar(cr,sets){
@@ -512,7 +521,7 @@ function bodyRow(label,key,cur,goal,unit,down){
   return `<div style="margin-bottom:14px">
     <div class="rowb"><span class="small dim">${label}</span>
       <span><span class="num" style="font-size:22px">${ok?cur:'—'}</span><span class="dim small"> → ${g}${unit}</span></span></div>
-    <div class="bar" style="margin:5px 0 4px"><i style="width:${pct}%;background:${pct>=100?'var(--green)':'var(--blue)'}"></i></div>
+    <div class="bar" style="margin:5px 0 4px"><i style="width:${pct}%;background:${pct>=100?'var(--green)':'var(--hi)'}"></i></div>
     <div class="xs dim">${!ok?'まだ測定していません（「今日の数値を記録」から入力）':
       per!==null?`今月の目安 ${r1(cur+per)}${unit}（残り${ml}か月 / 月あたり ${per>0?'+':''}${r1(per)}${unit}）`:'期限を設定すると月あたりの目安が出ます'}</div></div>`;
 }
@@ -692,7 +701,7 @@ try{
   if(document.querySelector('link[rel="manifest"]')) throw 0;   // 配布ビルドは静的manifestを持つ
   const ic=document.querySelector('link[rel="apple-touch-icon"]').href;
   const man={name:'Workout Console',short_name:'Console',start_url:'.',scope:'.',display:'standalone',
-    orientation:'portrait',background_color:'#101418',theme_color:'#101418',
+    orientation:'portrait',background_color:'#0B0B0C',theme_color:'#0B0B0C',
     icons:[{src:ic,sizes:'192x192',type:'image/png'}]};
   document.head.appendChild(Object.assign(document.createElement('link'),
     {rel:'manifest',href:URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}))}));
