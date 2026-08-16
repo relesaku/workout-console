@@ -185,11 +185,12 @@ const TPL={days:{
  0:[]}};
 
 /* ================= state ================= */
-let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets';
-const fresh=()=>({v:3,
+let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
+const fresh=()=>({v:4,
   settings:{bar:20},
   ex:EXDEF.map(e=>({...e})),
-  program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},
+  plan:{target:{...IDEAL}},                                  // 週の目標セット（寄与率換算）
+  program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
   body:{now:{w:null,bf:null,arm:null},goal:{w:null,bf:null,arm:null,deadline:''},log:[]},
   lifts:[], logs:{}});
 
@@ -444,29 +445,113 @@ function plannedVolume(){
 function actualWeekVolume(w){
   return logDates().filter(d=>weekStart(d)===w).reduce((t,d)=>t+(S.logs[d].entries||[]).reduce((a,e)=>a+volOf(e),0),0);
 }
-function vWeek(){
-  const cr=contribPlan(Object.values(S.program).flat());
-  const totalSets=Object.values(S.program).flat().reduce((t,p)=>t+p.sets,0);
-  const pv=plannedVolume(), cw=weekStart(today()), av=actualWeekVolume(cw);
-  const days=[1,2,3,4,5,6,0].map(d=>{
+/* --- 週の組み立て（部位 → 種目 → 曜日）--------------------------------
+   program は曜日キー "0"〜"6" に加えて "u"（未配置）を持つ。
+   STEP2 で足したセットは "u" に入り、STEP3 で曜日へ移す。
+   週の総セット数を変えるのは STEP2 だけ。STEP3 は移動しかしない。       */
+const DAYKEYS=['1','2','3','4','5','6','0'];
+const allPlan=()=>DAYKEYS.concat('u').reduce((a,k)=>a.concat(S.program[k]||[]),[]);
+const unassigned=()=>S.program.u||[];
+const exWeekSets=id=>allPlan().filter(p=>p.exId===id).reduce((t,p)=>t+p.sets,0);
+const planExIds=()=>{const seen=[];allPlan().forEach(p=>{if(!seen.includes(p.exId))seen.push(p.exId)});return seen};
+const bump=(k,id,n)=>{const L=S.program[k]=S.program[k]||[];const f=L.find(p=>p.exId===id);
+  if(f){f.sets+=n; if(f.sets<=0)L.splice(L.indexOf(f),1);} else if(n>0) L.push({exId:id,sets:n});};
+function addSet(id){ bump('u',id,1) }
+function dropSet(id){ // 未配置から先に減らす
+  for(const k of ['u',...DAYKEYS.slice().reverse()]){
+    const L=S.program[k]||[], f=L.find(p=>p.exId===id);
+    if(f){ bump(k,id,-1); return true } }
+  return false;
+}
+const delPlanEx=id=>{for(const k in S.program) S.program[k]=(S.program[k]||[]).filter(p=>p.exId!==id)};
+function place(id,day){ const f=unassigned().find(p=>p.exId===id); if(!f)return; bump('u',id,-1); bump(day,id,1) }
+function unplace(id,day){ const L=S.program[day]||[]; if(!L.find(p=>p.exId===id))return; bump(day,id,-1); bump('u',id,1) }
+const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
+const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
+
+function vStep1(){
+  const tot=targetTotal();
+  return `<div class="card">
+    <div class="rowb"><div><div class="xs dim">週の目標セット（寄与率換算）</div>
+      <div class="num" style="font-size:28px">${r1(tot)}</div></div>
+      <button class="btn sm" data-w="gen">目安から作る</button></div>
+    <div class="xs dim" style="margin-top:8px">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div></div>
+  <div class="card">
+    ${MUSCLES.map((k,i)=>{const v=targetOf(k), id=tot?IDEAL[k]/100*tot:0, d=v-id;
+      return `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
+        <div><div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:6px"></span>${k}</div>
+          <div class="xs dim">目安 ${r1(id)}${Math.abs(d)<0.6?'':` <span style="color:${d>0?'var(--green)':'var(--amber)'}">${d>0?'+':''}${r1(d)}</span>`}</div></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn sm" data-w="tm" data-k="${k}">−</button>
+          <span class="num" style="width:34px;text-align:center;font-size:19px">${r1(v)}</span>
+          <button class="btn sm" data-w="tp" data-k="${k}">＋</button></div></div>`}).join('')}
+  </div>
+  <div class="xs dim" style="text-align:center">目安はフィジーク体型の配分（§6.3）。<b>肩前は超過して正常</b>なので、見るのは肩中・肩後・広背。</div>`;
+}
+
+function vStep2(){
+  const got=contribPlan(allPlan()), ids=planExIds();
+  const short=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);
+  return `<div class="card">
+    <div class="xs dim" style="margin-bottom:9px">目標に対する割当。残りが0に近づくよう種目を足す。</div>
+    ${MUSCLES.map(k=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g, pct=tg?Math.min(100,g/tg*100):0;
+      const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>':rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`:`<span style="color:var(--green)">超過 ${r1(-rest)}</span>`;
+      return `<div style="margin-bottom:8px">
+        <div class="rowb xs"><span>${k}</span><span class="num">${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}</span></div>
+        <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    ${short.length?`<div class="xs dim" style="margin-top:4px">不足: ${short.join(' / ')}</div>`:''}
+  </div>
+  <div class="sect">種目と週セット数</div>
+  ${ids.length?ids.map(id=>{const ex=exOf(id); if(!ex)return'';
+    return `<div class="card" style="padding:10px 11px">
+      <div class="rowb">
+        <div><div style="font-weight:600">${esc(ex.name)}</div>
+          <div class="xs dim">${Object.entries(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn sm" data-w="em" data-id="${id}">−</button>
+          <span class="num" style="width:30px;text-align:center;font-size:19px">${exWeekSets(id)}</span>
+          <button class="btn sm" data-w="ep" data-id="${id}">＋</button>
+          <button class="xbtn" data-w="ex" data-id="${id}">✕</button></div></div></div>`}).join('')
+    :`<div class="empty">まだ種目がありません。<br>下から足すと、上の残りが減っていきます。</div>`}
+  <button class="btn wide" data-w="addex">＋ 種目を追加</button>`;
+}
+
+function vStep3(){
+  const u=unassigned();
+  const days=DAYKEYS.map(d=>{
     const L=S.program[d]||[], dc=contribPlan(L);
     return `<div class="card">
       <div class="rowb" style="margin-bottom:${L.length?'8px':'0'}">
-        <div><span class="num" style="font-size:20px">${WD[d]}</span>
-          <span class="small dim">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span></div>
-        <button class="btn sm" data-p="add" data-d="${d}">＋種目</button></div>
+        <div><span class="num" style="font-size:20px">${WD[+d]}</span>
+          <span class="small dim">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span></div></div>
       ${L.length?stackBar(dc):''}
-      ${L.map((p,i)=>{const ex=exOf(p.exId);if(!ex)return'';
+      ${L.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
         return `<div class="rowb" style="padding:7px 0;border-top:1px solid var(--line)">
           <div><div style="font-weight:600">${esc(ex.name)}</div>
-            <div class="xs dim">${Object.entries(ex.c).map(([k,v])=>`${k}${Math.round(v*100)}`).join(' / ')} ・ ${ex.repMin}–${ex.repMax}回</div></div>
+            <div class="xs dim">${ex.repMin}–${ex.repMax}回</div></div>
           <div style="display:flex;align-items:center;gap:6px">
-            <button class="btn sm" data-p="minus" data-d="${d}" data-i="${i}">−</button>
-            <span class="num" style="width:32px;text-align:center">${p.sets}</span>
-            <button class="btn sm" data-p="plus" data-d="${d}" data-i="${i}">＋</button>
-            <button class="btn sm gh" data-p="del" data-d="${d}" data-i="${i}">✕</button></div></div>`}).join('')}
+            <button class="btn sm" data-w="dm" data-id="${p.exId}" data-d="${d}">−</button>
+            <span class="num" style="width:26px;text-align:center">${p.sets}</span>
+            <button class="btn sm" data-w="dp" data-id="${p.exId}" data-d="${d}">＋</button></div></div>`}).join('')}
     </div>`}).join('');
+  return `${u.length?`<div class="sect">未配置</div>
+    ${u.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
+      return `<div class="card" style="padding:11px">
+        <div class="rowb"><div style="font-weight:600">${esc(ex.name)}</div><span class="chip warn">${p.sets}セット</span></div>
+        <div style="display:flex;gap:4px;margin-top:9px">${DAYKEYS.map(d=>
+          `<button class="btn sm" style="flex:1;padding:9px 0" data-w="place" data-id="${p.exId}" data-d="${d}">${WD[+d]}</button>`).join('')}</div></div>`}).join('')}`
+    :`<div class="tip good">すべて曜日に配置されています。</div>`}
+  <div class="sect">曜日ごとのメニュー</div>
+  <div class="xs dim" style="margin:-4px 0 8px">−で未配置に戻し、＋で未配置から入れる。週の合計はここでは変わらない。</div>
+  ${days}
+  <button class="btn wide" data-w="tpl">フィジーク向け 週6分割を入れる</button>
+  <div class="xs dim" style="margin-top:8px;text-align:center">目標・種目・配置をまとめて置き換えます（記録は消えません）</div>`;
+}
 
+function vWeek(){
+  const totalSets=allPlan().reduce((t,p)=>t+p.sets,0);
+  const pv=plannedVolume(), av=actualWeekVolume(weekStart(today()));
+  const steps=[['1','部位'],['2','種目'],['3','曜日']];
   return `<div class="card">
     <div class="rowb"><div><div class="xs dim">週の予定ボリューム</div>
       <div class="num" style="font-size:28px">${Math.round(pv.v).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div>
@@ -477,27 +562,34 @@ function vWeek(){
       <span class="num">${Math.round(av).toLocaleString()} kg <span class="dim">/ ${Math.round(pv.v).toLocaleString()}</span></span></div>
     <div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,pv.v?av/pv.v*100:0)}%"></i></div>
   </div>
-  <div class="sect">週全体の部位別 寄与率（計画）</div>
-  <div class="card">${ratioRows(cr,{ideal:true,unit:'set'})}
-    <div class="xs dim" style="margin-top:8px">黄色い縦線はフィジーク体型の目安配分。右端の数字は目安との差(%)。<br>
-    <b>肩前は超過するのが正常です</b>（プレス種目から自動的に入るため）。見るべきは肩中と肩後、そして広背が確保できているか。</div></div>
-  <div class="sect">曜日ごとのメニュー</div>
-  ${days}
-  <button class="btn wide" data-tpl="1">フィジーク向け 週6分割を入れる</button>
-  <div class="xs dim" style="margin-top:8px;text-align:center">押すと現在の週メニューは置き換わります（記録は消えません）</div>`;
+  <div class="seg" style="margin-bottom:12px">${steps.map(s=>
+    `<button class="btn sm ${wstep===+s[0]?'pri':''}" data-w="step" data-s="${s[0]}">${s[0]}. ${s[1]}</button>`).join('')}</div>
+  ${wstep===1?vStep1():wstep===2?vStep2():vStep3()}`;
 }
+
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tpl]');
-  if(t){ if(confirm('週メニューを置き換えます。よろしいですか？')){
-    const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
-    for(const d in TPL.days) p[d]=TPL.days[d].map(s=>{const[n,st]=s.split(':');const ex=S.ex.find(x=>x.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
-    S.program=p;save();render(); } return; }
-  const b=e.target.closest('[data-p]'); if(!b)return;
-  const {p,d,i}=b.dataset,L=S.program[d];
-  if(p==='plus')L[i].sets++;
-  if(p==='minus'&&L[i].sets>1)L[i].sets--;
-  if(p==='del')L.splice(i,1);
-  if(p==='add'){openPick(id=>{L.push({exId:id,sets:3});save();render()});return}
+  const b=e.target.closest('[data-w]'); if(!b)return;
+  const {w,k,id,d,s}=b.dataset;
+  if(w==='step'){wstep=+s;render();return}
+  if(w==='tm'){S.plan.target[k]=Math.max(0,targetOf(k)-1)}
+  if(w==='tp'){S.plan.target[k]=targetOf(k)+1}
+  if(w==='gen'){ const cur=r1(targetTotal())||100;
+    const n=prompt('週の総セット数（寄与率換算）を入れてください。目安配分で各部位に割り振ります。',cur);
+    if(n===null)return; const t=+n; if(!(t>0)){alert('数値を入れてください。');return}
+    MUSCLES.forEach(m=>S.plan.target[m]=Math.round(IDEAL[m]/100*t*2)/2); }
+  if(w==='ep'){addSet(id)}
+  if(w==='em'){dropSet(id)}
+  if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
+  if(w==='addex'){openPick(x=>{addSet(x);save();render()});return}
+  if(w==='place'){place(id,d)}
+  if(w==='dm'){unplace(id,d)}
+  if(w==='dp'){place(id,d)}
+  if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
+    const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
+    for(const day in TPL.days) p[day]=TPL.days[day].map(x=>{const[n,st]=x.split(':');const ex=S.ex.find(y=>y.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
+    S.program=p;
+    const got=contribPlan(allPlan());
+    MUSCLES.forEach(m=>S.plan.target[m]=Math.round((got[m]||0)*2)/2); }
   save();render();
 });
 
@@ -676,7 +768,7 @@ document.addEventListener('click',e=>{
     $('#dfile').onchange=ev=>{const f=ev.target.files[0]; if(!f)return;
       const rd=new FileReader(); rd.onload=()=>{$('#di').value=rd.result;}; rd.readAsText(f);};
     $('#di_ok').onclick=()=>{try{const o=JSON.parse($('#di').value);if(!o.ex||!o.logs)throw 0;
-      S=Object.assign(fresh(),o);save();closeSheet();render()}catch(err){alert('読み込めませんでした。テキストが途中で切れていないか確認してください。')}}});
+      S=Object.assign(fresh(),o); if((S.v||0)<4) migrate4(); save();closeSheet();render()}catch(err){alert('読み込めませんでした。テキストが途中で切れていないか確認してください。')}}});
   if(d.dataset.d==='rs'&&confirm('記録・メニュー・目標をすべて消去します。元に戻せません。')){S=fresh();save();render()}
 });
 
@@ -718,12 +810,26 @@ function migrate(){
   });
   S.v=3;
 }
+/* v4: 未配置バケツと、週の目標セット数を追加する。
+   既存の週メニューがあれば、その配分をそのまま目標として引き継ぐ（いまの状態から始められる）。*/
+function migrate4(){
+  if(!S.program) S.program={};
+  if(!Array.isArray(S.program.u)) S.program.u=[];
+  if(!S.plan||!S.plan.target){
+    const got=contribPlan(allPlan());
+    const has=MUSCLES.some(k=>(got[k]||0)>0);
+    S.plan={target:{}};
+    MUSCLES.forEach(k=>S.plan.target[k]=has?Math.round((got[k]||0)*2)/2:IDEAL[k]);
+  }
+  S.v=4;
+}
 (async()=>{ const saved=await store.get(); S=saved?Object.assign(fresh(),saved):fresh();
-  if(saved&&(saved.v||0)<3){ migrate(); save(); }
-  if(!saved){ const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
+  if(saved&&(saved.v||0)<3) migrate();
+  if(!saved){ const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
     for(const d in TPL.days) p[d]=TPL.days[d].map(s=>{const[n,st]=s.split(':');const ex=S.ex.find(x=>x.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
-    S.program=p;
-    save(); }
+    S.program=p; }
+  if((S.v||0)<4) migrate4();
+  save();
   selDate=today(); render(); })();
 </script>
 
