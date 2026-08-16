@@ -90,6 +90,10 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .tick.on{background:transparent;border-color:var(--hi);color:var(--hi);font-weight:700}
 .xbtn{flex:0 0 auto;width:40px;height:40px;border:1px solid var(--line);border-radius:9px;
   display:flex;align-items:center;justify-content:center;color:var(--dimmer);font-size:15px}
+/* 週メニューの増減ボタン。連打する場所なので44pxを確保する */
+.stp{flex:0 0 auto;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;color:var(--text)}
+.stp:active{background:#26262B}
 .exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
 .plates{display:flex;gap:3px;align-items:center;flex-wrap:wrap;padding:0 12px 9px}
@@ -471,22 +475,30 @@ function unplace(id,day){ const L=S.program[day]||[]; if(!L.find(p=>p.exId===id)
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 
+const tDiffHTML=(k,tot)=>{const v=targetOf(k), id=tot?IDEAL[k]/100*tot:0, d=v-id;
+  return `目安 ${r1(id)}${Math.abs(d)<0.6?'':` <span style="color:${d>0?'var(--green)':'var(--amber)'}">${d>0?'+':''}${r1(d)}</span>`}`};
+const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
+  const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>'
+    :rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`
+    :`<span style="color:var(--green)">超過 ${r1(-rest)}</span>`;
+  return `${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}`};
+
 function vStep1(){
   const tot=targetTotal();
   return `<div class="card">
     <div class="rowb"><div><div class="xs dim">週の目標セット（寄与率換算）</div>
-      <div class="num" style="font-size:28px">${r1(tot)}</div></div>
+      <div class="num" id="tTotal" style="font-size:28px">${r1(tot)}</div></div>
       <button class="btn sm" data-w="gen">目安から作る</button></div>
     <div class="xs dim" style="margin-top:8px">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div></div>
   <div class="card">
-    ${MUSCLES.map((k,i)=>{const v=targetOf(k), id=tot?IDEAL[k]/100*tot:0, d=v-id;
-      return `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
+    ${MUSCLES.map((k,i)=>
+      `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
         <div><div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:6px"></span>${k}</div>
-          <div class="xs dim">目安 ${r1(id)}${Math.abs(d)<0.6?'':` <span style="color:${d>0?'var(--green)':'var(--amber)'}">${d>0?'+':''}${r1(d)}</span>`}</div></div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button class="btn sm" data-w="tm" data-k="${k}">−</button>
-          <span class="num" style="width:34px;text-align:center;font-size:19px">${r1(v)}</span>
-          <button class="btn sm" data-w="tp" data-k="${k}">＋</button></div></div>`}).join('')}
+          <div class="xs dim" data-td="${k}">${tDiffHTML(k,tot)}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="stp" data-w="tm" data-k="${k}">−</button>
+          <span class="num" data-tv="${k}" style="width:34px;text-align:center;font-size:19px">${r1(targetOf(k))}</span>
+          <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
   </div>
   <div class="xs dim" style="text-align:center">目安はフィジーク体型の配分（§6.3）。<b>肩前は超過して正常</b>なので、見るのは肩中・肩後・広背。</div>`;
 }
@@ -496,12 +508,11 @@ function vStep2(){
   const short=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);
   return `<div class="card">
     <div class="xs dim" style="margin-bottom:9px">目標に対する割当。残りが0に近づくよう種目を足す。</div>
-    ${MUSCLES.map(k=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g, pct=tg?Math.min(100,g/tg*100):0;
-      const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>':rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`:`<span style="color:var(--green)">超過 ${r1(-rest)}</span>`;
+    ${MUSCLES.map(k=>{const tg=targetOf(k), pct=tg?Math.min(100,(got[k]||0)/tg*100):0;
       return `<div style="margin-bottom:8px">
-        <div class="rowb xs"><span>${k}</span><span class="num">${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}</span></div>
-        <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
-    ${short.length?`<div class="xs dim" style="margin-top:4px">不足: ${short.join(' / ')}</div>`:''}
+        <div class="rowb xs"><span>${k}</span><span class="num" data-mv="${k}">${restHTML(k,got)}</span></div>
+        <div class="bar" style="margin-top:3px"><i data-mb="${k}" style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    <div class="xs dim" id="mShort" style="margin-top:4px">${short.length?'不足: '+short.join(' / '):''}</div>
   </div>
   <div class="sect">種目と週セット数</div>
   ${ids.length?ids.map(id=>{const ex=exOf(id); if(!ex)return'';
@@ -509,10 +520,10 @@ function vStep2(){
       <div class="rowb">
         <div><div style="font-weight:600">${esc(ex.name)}</div>
           <div class="xs dim">${Object.entries(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button class="btn sm" data-w="em" data-id="${id}">−</button>
-          <span class="num" style="width:30px;text-align:center;font-size:19px">${exWeekSets(id)}</span>
-          <button class="btn sm" data-w="ep" data-id="${id}">＋</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="stp" data-w="em" data-id="${id}">−</button>
+          <span class="num" data-ev="${id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(id)}</span>
+          <button class="stp" data-w="ep" data-id="${id}">＋</button>
           <button class="xbtn" data-w="ex" data-id="${id}">✕</button></div></div></div>`}).join('')
     :`<div class="empty">まだ種目がありません。<br>下から足すと、上の残りが減っていきます。</div>`}
   <button class="btn wide" data-w="addex">＋ 種目を追加</button>`;
@@ -525,23 +536,23 @@ function vStep3(){
     return `<div class="card">
       <div class="rowb" style="margin-bottom:${L.length?'8px':'0'}">
         <div><span class="num" style="font-size:20px">${WD[+d]}</span>
-          <span class="small dim">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span></div></div>
-      ${L.length?stackBar(dc):''}
+          <span class="small dim" data-dt="${d}">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span></div></div>
+      <div data-ds="${d}">${L.length?stackBar(dc):''}</div>
       ${L.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
         return `<div class="rowb" style="padding:7px 0;border-top:1px solid var(--line)">
           <div><div style="font-weight:600">${esc(ex.name)}</div>
             <div class="xs dim">${ex.repMin}–${ex.repMax}回</div></div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <button class="btn sm" data-w="dm" data-id="${p.exId}" data-d="${d}">−</button>
-            <span class="num" style="width:26px;text-align:center">${p.sets}</span>
-            <button class="btn sm" data-w="dp" data-id="${p.exId}" data-d="${d}">＋</button></div></div>`}).join('')}
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="stp" data-w="dm" data-id="${p.exId}" data-d="${d}">−</button>
+            <span class="num" data-dv="${d}|${p.exId}" style="width:26px;text-align:center">${p.sets}</span>
+            <button class="stp" data-w="dp" data-id="${p.exId}" data-d="${d}">＋</button></div></div>`}).join('')}
     </div>`}).join('');
   return `${u.length?`<div class="sect">未配置</div>
     ${u.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
       return `<div class="card" style="padding:11px">
-        <div class="rowb"><div style="font-weight:600">${esc(ex.name)}</div><span class="chip warn">${p.sets}セット</span></div>
+        <div class="rowb"><div style="font-weight:600">${esc(ex.name)}</div><span class="chip warn" data-uv="${p.exId}">${p.sets}セット</span></div>
         <div style="display:flex;gap:4px;margin-top:9px">${DAYKEYS.map(d=>
-          `<button class="btn sm" style="flex:1;padding:9px 0" data-w="place" data-id="${p.exId}" data-d="${d}">${WD[+d]}</button>`).join('')}</div></div>`}).join('')}`
+          `<button class="btn sm" style="flex:1;padding:12px 0" data-w="place" data-id="${p.exId}" data-d="${d}">${WD[+d]}</button>`).join('')}</div></div>`}).join('')}`
     :`<div class="tip good">すべて曜日に配置されています。</div>`}
   <div class="sect">曜日ごとのメニュー</div>
   <div class="xs dim" style="margin:-4px 0 8px">−で未配置に戻し、＋で未配置から入れる。週の合計はここでは変わらない。</div>
@@ -558,7 +569,7 @@ function vWeek(){
     <div class="rowb"><div><div class="xs dim">週の予定ボリューム</div>
       <div class="num" style="font-size:28px">${Math.round(pv.v).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div>
       <div class="xs dim">直近の実績重量 × 目標レップ中央値 × セット数${pv.unknown?`（未記録の${pv.unknown}種目を除く）`:''}</div></div>
-      <div style="text-align:right"><div class="xs dim">週の総セット</div><div class="num" style="font-size:28px">${totalSets}</div></div></div>
+      <div style="text-align:right"><div class="xs dim">週の総セット</div><div class="num" id="wTotal" style="font-size:28px">${totalSets}</div></div></div>
     <div style="height:12px"></div>
     <div class="rowb small"><span class="dim">今週の実績</span>
       <span class="num">${Math.round(av).toLocaleString()} kg <span class="dim">/ ${Math.round(pv.v).toLocaleString()}</span></span></div>
@@ -569,10 +580,46 @@ function vWeek(){
   ${wstep===1?vStep1():wstep===2?vStep2():vStep3()}`;
 }
 
+/* いま表示している画面の構成が変わったかどうか。同じなら数字だけ差し替える（§10-2）。
+   STEP2は未配置バケツを表示しないので、そこへセットが移っても作り直さない。 */
+const planSig=()=>wstep===2 ? planExIds().join(',')
+  : DAYKEYS.concat('u').map(k=>k+':'+(S.program[k]||[]).map(p=>p.exId).join(',')).join('|');
+function refreshWeek(){
+  if(tab!=='week')return;
+  const g=id=>document.getElementById(id), q=s=>document.querySelector(s);
+  const t=g('wTotal'); if(t)t.textContent=allPlan().reduce((a,p)=>a+p.sets,0);
+  if(wstep===1){
+    const tot=targetTotal(); const n=g('tTotal'); if(n)n.textContent=r1(tot);
+    MUSCLES.forEach(k=>{
+      const v=q(`[data-tv="${k}"]`); if(v)v.textContent=r1(targetOf(k));
+      const dd=q(`[data-td="${k}"]`); if(dd)dd.innerHTML=tDiffHTML(k,tot);
+    });
+  }
+  if(wstep===2){
+    const got=contribPlan(allPlan());
+    MUSCLES.forEach(k=>{
+      const tg=targetOf(k);
+      const v=q(`[data-mv="${k}"]`); if(v)v.innerHTML=restHTML(k,got);
+      const b=q(`[data-mb="${k}"]`); if(b)b.style.width=(tg?Math.min(100,(got[k]||0)/tg*100):0)+'%';
+    });
+    const sh=g('mShort'); if(sh){const s=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);sh.textContent=s.length?'不足: '+s.join(' / '):''}
+    planExIds().forEach(id=>{const v=q(`[data-ev="${id}"]`); if(v)v.textContent=exWeekSets(id)});
+  }
+  if(wstep===3){
+    DAYKEYS.forEach(d=>{
+      const L=S.program[d]||[];
+      const t2=q(`[data-dt="${d}"]`); if(t2)t2.textContent='　'+(L.length?L.reduce((a,p)=>a+p.sets,0)+'セット':'休養');
+      const s2=q(`[data-ds="${d}"]`); if(s2)s2.innerHTML=L.length?stackBar(contribPlan(L)):'';
+      L.forEach(p=>{const v=q(`[data-dv="${d}|${p.exId}"]`); if(v)v.textContent=p.sets});
+    });
+    unassigned().forEach(p=>{const v=q(`[data-uv="${p.exId}"]`); if(v)v.textContent=p.sets+'セット'});
+  }
+}
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-w]'); if(!b)return;
   const {w,k,id,d,s}=b.dataset;
   if(w==='step'){wstep=+s;render();return}
+  const sig=planSig();
   if(w==='tm'){S.plan.target[k]=Math.max(0,targetOf(k)-1)}
   if(w==='tp'){S.plan.target[k]=targetOf(k)+1}
   if(w==='gen'){ const cur=r1(targetTotal())||100;
@@ -592,7 +639,8 @@ document.addEventListener('click',e=>{
     S.program=p;
     const got=contribPlan(allPlan());
     MUSCLES.forEach(m=>S.plan.target[m]=Math.round((got[m]||0)*2)/2); }
-  save();render();
+  save();
+  if(planSig()===sig) refreshWeek(); else render();   // 構成が変わったときだけ作り直す
 });
 
 /* ================= ① 目標 ================= */
@@ -835,4 +883,14 @@ function migrate4(){
   selDate=today(); render(); })();
 </script>
 
-<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));</script>
+<script>
+if('serviceWorker' in navigator){
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{      // 譁ｰ縺励＞SW縺御ｸｻ蟆取ｨｩ繧貞叙縺｣縺溘ｉ
+    if(reloaded)return; reloaded=true; location.reload();                // 縺昴・蝣ｴ縺ｧ譁ｰ縺励＞迚医↓蟾ｮ縺玲崛縺医ｋ
+  });
+  addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
+  document.addEventListener('visibilitychange',()=>{                     // 繧｢繝励Μ縺ｫ謌ｻ繧九◆縺ｳ縺ｫ譖ｴ譁ｰ繧堤｢ｺ隱・    if(!document.hidden) navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
+  });
+}
+</script>
