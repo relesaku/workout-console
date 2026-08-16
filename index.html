@@ -29,7 +29,9 @@
   --disp:"Barlow Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --body:"Barlow Semi Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* touch-action:manipulation = ダブルタップの拡大だけを無効化する。
+   スクロールとピンチでの拡大は残る。記録中の誤爆で画面が飛ぶのを防ぐため。 */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.45}
 body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
