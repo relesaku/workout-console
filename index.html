@@ -225,7 +225,7 @@ const logDates=()=>Object.keys(S.logs).filter(d=>(S.logs[d].entries||[]).some(e=
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
   for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
 const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
-function weekStart(d){const x=parse(d);x.setDate(x.getDate()-x.getDay());return ds(x)}  // 日曜始まり
+function weekStart(d){const x=parse(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return ds(x)}  // 月曜始まり
 const monthKey=d=>d.slice(0,7);
 
 /* ================= 寄与率 ================= */
@@ -448,7 +448,7 @@ function actualWeekVolume(w){
    program は曜日キー "0"〜"6" に加えて "u"（未配置）を持つ。
    STEP2 で足したセットは "u" に入り、STEP3 で曜日へ移す。
    週の総セット数を変えるのは STEP2 だけ。STEP3 は移動しかしない。       */
-const DAYKEYS=['0','1','2','3','4','5','6'];   // 日曜始まり
+const DAYKEYS=['1','2','3','4','5','6','0'];   // 月曜始まり
 const allPlan=()=>DAYKEYS.concat('u').reduce((a,k)=>a.concat(S.program[k]||[]),[]);
 const unassigned=()=>S.program.u||[];
 const exWeekSets=id=>allPlan().filter(p=>p.exId===id).reduce((t,p)=>t+p.sets,0);
