@@ -68,8 +68,10 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .chip.dn{color:var(--dim);border-color:var(--line)}
 .chip.warn{color:var(--amber);border-color:var(--amber-bd);background:var(--amber-bg)}
 .chip.pr{color:#160500;background:var(--hot);border-color:var(--hot);font-weight:600}
-.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.days::-webkit-scrollbar{display:none}
-.day{flex:0 0 auto;width:52px;text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 0;background:var(--surface)}
+/* 月〜日の7日を横スクロールなしで並べる */
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 0;background:var(--surface);min-width:0}
+.wknav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
 .day .d{font-size:11px;color:var(--dim)}.day .n{font-family:var(--disp);font-size:20px;font-weight:600;line-height:1.1}
 .day.sel{border-color:var(--hi);background:var(--hi-bg)}
 .day.has::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--dim);margin:3px auto 0}
@@ -350,13 +352,23 @@ function renumber(ei){let no=0;
     const s=S.logs[selDate].entries[ei].sets[+row.dataset.si],n=cnt(s),from=no+1;no+=n;
     const idx=row.querySelector('.idx'); if(idx)idx.textContent=n>1?`${from}-${no}`:from;});
 }
+const shiftDate=(d,n)=>{const x=parse(d);x.setDate(x.getDate()+n);return ds(x)};
+const md=d=>d.slice(5).replace('-','/');
 function vToday(){
   const d=selDate,ents=entriesFor(d);
-  const base=new Date();base.setDate(base.getDate()-4);
+  // 日付ストリップは「選んだ日を含む週」の月〜日。週送りで前後の週へ
+  const ws=weekStart(d), we=shiftDate(ws,6);
   let strip='';
-  for(let i=0;i<9;i++){const dt=new Date(base);dt.setDate(base.getDate()+i);const k=ds(dt);
+  for(let i=0;i<7;i++){const k=shiftDate(ws,i), dt=parse(k);
     const has=S.logs[k]&&(S.logs[k].entries||[]).some(e=>doneSets(e).length);
     strip+=`<button class="day ${k===d?'sel':''} ${has?'has':''} ${k===today()?'today':''}" data-date="${k}"><div class="d">${WD[dt.getDay()]}</div><div class="n">${dt.getDate()}</div></button>`}
+  const thisWeek=ws===weekStart(today());
+  const nav=`<div class="wknav">
+    <button class="xbtn" data-date="${shiftDate(d,-7)}">‹</button>
+    <div class="xs dim">${md(ws)} – ${md(we)}${thisWeek?'　今週':''}</div>
+    <div style="display:flex;gap:6px">
+      ${thisWeek?'':`<button class="btn sm" data-date="${today()}">今週</button>`}
+      <button class="xbtn" data-date="${shiftDate(d,7)}">›</button></div></div>`;
   const vol=ents.reduce((t,e)=>t+volOf(e),0), sets=ents.reduce((t,e)=>t+setCount(e),0);
   const cr=contribLog(ents,basis);
 
@@ -383,7 +395,7 @@ function vToday(){
         <span data-foot="${ei}">${exFoot(en)}</span></div>
     </div>`}).join('');
 
-  return `<div class="days">${strip}</div><div style="height:12px"></div>
+  return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
   <div class="card">
     <div class="rowb"><div><div class="xs dim">総ボリューム</div>
