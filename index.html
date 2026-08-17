@@ -227,7 +227,7 @@ const logDates=()=>Object.keys(S.logs).filter(d=>(S.logs[d].entries||[]).some(e=
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
   for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
 const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
-function weekStart(d){const x=parse(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return ds(x)}
+function weekStart(d){const x=parse(d);x.setDate(x.getDate()-x.getDay());return ds(x)}  // 日曜始まり
 const monthKey=d=>d.slice(0,7);
 
 /* ================= 寄与率 ================= */
@@ -462,7 +462,7 @@ function actualWeekVolume(w){
    program は曜日キー "0"〜"6" に加えて "u"（未配置）を持つ。
    STEP2 で足したセットは "u" に入り、STEP3 で曜日へ移す。
    週の総セット数を変えるのは STEP2 だけ。STEP3 は移動しかしない。       */
-const DAYKEYS=['1','2','3','4','5','6','0'];
+const DAYKEYS=['0','1','2','3','4','5','6'];   // 日曜始まり
 const allPlan=()=>DAYKEYS.concat('u').reduce((a,k)=>a.concat(S.program[k]||[]),[]);
 const unassigned=()=>S.program.u||[];
 const exWeekSets=id=>allPlan().filter(p=>p.exId===id).reduce((t,p)=>t+p.sets,0);
@@ -492,11 +492,8 @@ const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
 
 function vStep1(){
   const tot=targetTotal();
-  return `<div class="card">
-    <div class="rowb"><div><div class="xs dim">週の目標セット（寄与率換算）</div>
-      <div class="num" id="tTotal" style="font-size:28px">${r1(tot)}</div></div>
-      <button class="btn sm" data-w="gen">目安から作る</button></div>
-    <div class="xs dim" style="margin-top:8px">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div></div>
+  return `<div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
+  <button class="btn wide" data-w="gen" style="margin-bottom:12px">目安から作る</button>
   <div class="card">
     ${MUSCLES.map((k,i)=>
       `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
@@ -596,7 +593,7 @@ function refreshWeek(){
   const g=id=>document.getElementById(id), q=s=>document.querySelector(s);
   const t=g('wTotal'); if(t)t.textContent=allPlan().reduce((a,p)=>a+p.sets,0);
   if(wstep===1){
-    const tot=targetTotal(); const n=g('tTotal'); if(n)n.textContent=r1(tot);
+    const tot=targetTotal();
     MUSCLES.forEach(k=>{
       const v=q(`[data-tv="${k}"]`); if(v)v.textContent=r1(targetOf(k));
       const dd=q(`[data-td="${k}"]`); if(dd)dd.innerHTML=tDiffHTML(k,tot);
