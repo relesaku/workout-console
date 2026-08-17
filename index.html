@@ -758,13 +758,17 @@ function vSet(){
 }
 document.addEventListener('click',e=>{
   const x=e.target.closest('[data-x]');
-  if(x){ const isNew=x.dataset.x==='new',i=+x.dataset.i;
-    const ex=isNew?{name:'',c:{胸:1},kind:'mc',repMin:8,repMax:12}:S.ex[i];
+  if(x){ const mode=x.dataset.x, i=+x.dataset.i, isNew=(mode==='new'||mode==='dup');
+    // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
+    const ex=mode==='new'?{name:'',c:{胸:1},kind:'mc',repMin:8,repMax:12}
+      :mode==='dup'?{...S.ex[i],c:{...S.ex[i].c}}
+      :S.ex[i];
     const rows=k=>`<div class="g2" style="margin-bottom:8px"><select class="c_m">${MUSCLES.map(m=>`<option ${k[0]===m?'selected':''}>${m}</option>`).join('')}</select>
       <input class="c_v" inputmode="numeric" value="${Math.round(k[1]*100)}" placeholder="%"></div>`;
     const cs=cList(ex.c); while(cs.length<3)cs.push(['',0]);
-    openSheet(`<h3>${isNew?'種目を追加':'種目を編集'}</h3><div style="height:10px"></div>
+    openSheet(`<h3>${mode==='new'?'種目を追加':mode==='dup'?'種目を複製':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
+      ${mode==='dup'?'<div class="xs dim" style="margin-top:5px">ジム名などを付けて区別してください（例:「チェストプレス 本店」）。寄与率とレップ帯は複製元のままです。</div>':''}
       <div style="height:10px"></div><div class="g2">
         <div><label class="f">レップ下限</label><input id="x_a" inputmode="numeric" value="${ex.repMin}"></div>
         <div><label class="f">レップ上限</label><input id="x_b" inputmode="numeric" value="${ex.repMax}"></div></div>
@@ -772,7 +776,8 @@ document.addEventListener('click',e=>{
       <div id="x_c">${cs.slice(0,4).map(rows).join('')}</div>
       <div class="xs dim">使わない行は 0 のままで大丈夫です。</div>
       <div style="height:14px"></div><button class="btn pri wide" id="x_ok">保存する</button>
-      ${isNew?'':'<div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>'}
+      ${isNew?'':`<div style="height:8px"></div><button class="btn wide" data-x="dup" data-i="${i}">この種目を複製</button>
+      <div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>`}
       <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
       $('#x_ok').onclick=()=>{
         const ms=[...sheet.querySelectorAll('.c_m')].map(s=>s.value),vs=[...sheet.querySelectorAll('.c_v')].map(s=>+s.value||0);
@@ -784,6 +789,7 @@ document.addEventListener('click',e=>{
         const o={...ex,name:$('#x_n').value.trim()||'名称未設定',
           repMin:+$('#x_a').value,repMax:+$('#x_b').value,c};
         delete o.inc;                                   // 増分kgは廃止（どこにも使っていなかった）
+        if(isNew&&S.ex.some(e=>e.name===o.name)&&!confirm(`「${o.name}」は既にあります。同じ名前のまま追加しますか？`))return;
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
         save();closeSheet();render();};
       const del=$('#x_del'); if(del)del.onclick=()=>{if(confirm('この種目を削除します。過去の記録は残ります。')){S.ex.splice(i,1);save();closeSheet();render()}};
