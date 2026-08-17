@@ -25,7 +25,6 @@
   --amber:#F0B429; --amber-bd:#4A3C14; --amber-bg:#1E1A12;   /* 警告のみ */
   --green:#35B57E; --green-bd:#26443A; --green-bg:#12211C;   /* 目安に対する超過 */
   --red:#E23B3B; --red-bd:#4A2A2E;
-  --p25:#E23B3B; --p20:#2F6FE4; --p15:#F0B429; --p10:#35B57E; --p5:#DDE3E9; --p2:#9AA6B2;
   --disp:"Barlow Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --body:"Barlow Semi Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
 }
@@ -101,9 +100,6 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .stp:active{background:#26262B}
 .exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
-.plates{display:flex;gap:3px;align-items:center;flex-wrap:wrap;padding:0 12px 9px}
-.pl{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:11px;font-weight:700;color:#0B0B0C}
-.pl.b{border-radius:50%}
 .bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
 .bar>i{display:block;height:100%;background:var(--hi)}
 /* 寄与率 */
@@ -183,7 +179,7 @@ const EXDEF=[
  ['カーフレイズ',{ふくらはぎ:1},'mc',12,20,2.5],
  ['アブローラー',{腹:1},'bw',10,15,0],
  ['ハンギングレッグレイズ',{腹:1},'bw',10,20,0]
-].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2],repMin:a[3],repMax:a[4],inc:a[5]}));
+].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2],repMin:a[3],repMax:a[4]}));   // a[5]（増分kg）は未使用のため取り込まない
 
 // フィジーク体型の目安配分（%）— 肩・背中・胸・腕を厚く、脚は維持レベル
 const IDEAL={胸:15,肩前:6,肩中:10,肩後:7,広背:12,僧帽上背:8,二頭:8,三頭:10,大腿四頭:8,ハム臀:8,ふくらはぎ:3,腹:5};
@@ -200,7 +196,6 @@ const TPL={days:{
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
 const fresh=()=>({v:4,
-  settings:{bar:20,ez:10},
   ex:EXDEF.map(e=>({...e})),
   plan:{target:{...IDEAL}},                                  // 週の目標セット（寄与率換算）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
@@ -264,17 +259,6 @@ function stackBar(m){
   return `<div class="stack">${MUSCLES.filter(k=>m[k]>0).map(k=>`<i style="width:${m[k]/t*100}%;background:${MCOL[k]}"></i>`).join('')}</div>`;
 }
 
-/* ================= plates ================= */
-const PLATES=[[25,'var(--p25)'],[20,'var(--p20)'],[15,'var(--p15)'],[10,'var(--p10)'],[5,'var(--p5)'],[2.5,'var(--p25)'],[1.25,'var(--p2)']];
-const BARKINDS={bar:['バーベル',20],ez:['EZバー',10]};                 // 器具ごとのシャフト重量の既定値
-const barWeight=kind=>kind==='ez'?(+S.settings.ez||10):(+S.settings.bar||20);
-function plateHTML(total,kind){
-  if(!BARKINDS[kind])return''; let rest=(+total-barWeight(kind))/2; if(!(rest>0))return'';
-  const r2=n=>Math.round(n*100)/100;
-  let out=''; for(const[w,c]of PLATES){while(rest>=w-.001){out+=`<span class="pl${w<5?' b':''}" style="background:${c}">${w}</span>`;rest=r2(rest-w);}}
-  return `<div class="plates"><span class="xs dim">片側${kind==='ez'?' EZ':''}</span>${out}${rest>.05?`<span class="xs dim">+${r2(rest)}</span>`:''}</div>`;
-}
-
 /* 見ただけの日（自動生成された空メニュー）は保存しない */
 const touched=L=>((L.skip||[]).length>0)||(L.entries||[]).some(e=>(e.sets||[]).some(s=>(s.w!==''&&s.w!=null)||(s.r!==''&&s.r!=null)||s.done));
 const prune=()=>{for(const d in S.logs) if(d!==selDate&&!touched(S.logs[d])) delete S.logs[d]};
@@ -309,7 +293,6 @@ function entriesFor(d){
 }
 /* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
 const partialRow=s=>((!!(+s.w))!==(!!(+s.r)))||(!!s.done&&!(+s.w&&+s.r));
-const topWeight=en=>en.sets.map(s=>+s.w||0).sort((a,b)=>b-a)[0]||0;
 /* 全角数字・単位の打ち間違いをその場で直す */
 function numFix(v,dec){
   v=String(v).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[。、]/g,'.');
@@ -356,7 +339,6 @@ function refreshToday(){
   if(g('crCard'))g('crCard').innerHTML=crCard(cr,sets);
   ents.forEach((en,ei)=>{const ex=exOf(en.exId); if(!ex)return;
     const f=document.querySelector(`[data-foot="${ei}"]`); if(f)f.innerHTML=exFoot(en);
-    const p=document.querySelector(`[data-plates="${ei}"]`); if(p)p.innerHTML=plateHTML(topWeight(en),ex.kind);
     en.sets.forEach((s,si)=>{const row=document.querySelector(`.setrow[data-ei="${ei}"][data-si="${si}"]`);
       if(row)row.classList.toggle('warn',partialRow(s));});
   });
@@ -393,7 +375,6 @@ function vToday(){
         <input inputmode="numeric" value="${s.r}" data-f="r" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].r:''}">
         <button class="mult ${n>1?'on':''}" data-act="mult" data-ei="${ei}" data-si="${si}">×${n}</button>
         <button class="tick ${s.done?'on':''}" data-act="tick" data-ei="${ei}" data-si="${si}">✓</button></div>`}).join('')})()}
-      <div data-plates="${ei}">${plateHTML(topWeight(en),ex.kind)}</div>
       <div class="exfoot"><button class="btn sm" data-act="addset" data-ei="${ei}">行を追加</button>
         <button class="btn sm gh" data-act="rmset" data-ei="${ei}">削除</button>
         ${prev?`<button class="btn sm" data-act="copyprev" data-ei="${ei}">前回をコピー</button>`:''}
@@ -770,31 +751,21 @@ function vSet(){
     <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button></div>
   <div class="sect">その他</div>
   <div class="card">
-    <div class="g2">
-      <div><label class="f">バーの重量 kg</label><input inputmode="decimal" value="${S.settings.bar}" data-bar></div>
-      <div><label class="f">EZバーの重量 kg</label><input inputmode="decimal" value="${S.settings.ez}" data-ez></div></div>
-    <div class="xs dim" style="margin-top:6px">片側プレートの計算に使います。器具が「バーベル」「EZバー」の種目だけ。</div>
-    <div style="height:12px"></div>
     <button class="btn wide" data-d="ex">記録を書き出す</button><div style="height:8px"></div>
     <button class="btn wide" data-d="im">記録を読み込む</button><div style="height:8px"></div>
     <button class="btn wide danger" data-d="rs">すべて消去</button>
     <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div></div>`;
 }
-document.addEventListener('input',e=>{
-  if(e.target.dataset.bar!==undefined){S.settings.bar=+e.target.value||20;save()}
-  if(e.target.dataset.ez!==undefined){S.settings.ez=+e.target.value||10;save()}});
 document.addEventListener('click',e=>{
   const x=e.target.closest('[data-x]');
   if(x){ const isNew=x.dataset.x==='new',i=+x.dataset.i;
-    const ex=isNew?{name:'',c:{胸:1},kind:'bar',repMin:8,repMax:12,inc:2.5}:S.ex[i];
+    const ex=isNew?{name:'',c:{胸:1},kind:'mc',repMin:8,repMax:12}:S.ex[i];
     const rows=k=>`<div class="g2" style="margin-bottom:8px"><select class="c_m">${MUSCLES.map(m=>`<option ${k[0]===m?'selected':''}>${m}</option>`).join('')}</select>
       <input class="c_v" inputmode="numeric" value="${Math.round(k[1]*100)}" placeholder="%"></div>`;
     const cs=cList(ex.c); while(cs.length<3)cs.push(['',0]);
     openSheet(`<h3>${isNew?'種目を追加':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
       <div style="height:10px"></div><div class="g2">
-        <div><label class="f">器具</label><select id="x_k">${[['bar','バーベル'],['ez','EZバー'],['db','ダンベル'],['mc','マシン'],['bw','自重']].map(k=>`<option value="${k[0]}" ${ex.kind===k[0]?'selected':''}>${k[1]}</option>`).join('')}</select></div>
-        <div><label class="f">増分 kg</label><input id="x_i" inputmode="decimal" value="${ex.inc}"></div>
         <div><label class="f">レップ下限</label><input id="x_a" inputmode="numeric" value="${ex.repMin}"></div>
         <div><label class="f">レップ上限</label><input id="x_b" inputmode="numeric" value="${ex.repMax}"></div></div>
       <div class="sect">寄与率（部位 / %）</div>
@@ -810,8 +781,9 @@ document.addEventListener('click',e=>{
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
         for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
         if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
-        const o={...ex,name:$('#x_n').value.trim()||'名称未設定',kind:$('#x_k').value,inc:+$('#x_i').value,
+        const o={...ex,name:$('#x_n').value.trim()||'名称未設定',
           repMin:+$('#x_a').value,repMax:+$('#x_b').value,c};
+        delete o.inc;                                   // 増分kgは廃止（どこにも使っていなかった）
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
         save();closeSheet();render();};
       const del=$('#x_del'); if(del)del.onclick=()=>{if(confirm('この種目を削除します。過去の記録は残ります。')){S.ex.splice(i,1);save();closeSheet();render()}};
@@ -894,8 +866,8 @@ function migrate4(){
     for(const d in TPL.days) p[d]=TPL.days[d].map(s=>{const[n,st]=s.split(':');const ex=S.ex.find(x=>x.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
     S.program=p; }
   if((S.v||0)<4) migrate4();
-  S.settings={bar:20,ez:10,...(S.settings||{})};                        // 後から足した設定を補う
-  S.ex.forEach(e=>{for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]}); // 0%の部位が残っていたら消す
+  delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
+  S.ex.forEach(e=>{delete e.inc; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
   selDate=today(); render(); })();
 </script>
