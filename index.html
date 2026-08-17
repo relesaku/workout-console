@@ -200,7 +200,7 @@ const TPL={days:{
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
 const fresh=()=>({v:4,
-  settings:{bar:20},
+  settings:{bar:20,ez:10},
   ex:EXDEF.map(e=>({...e})),
   plan:{target:{...IDEAL}},                                  // 週の目標セット（寄与率換算）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
@@ -215,6 +215,7 @@ const parse=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
 const today=()=>ds(new Date());
 const WD=['日','月','火','水','木','金','土'];
 const exOf=id=>S.ex.find(e=>e.id===id);
+const cList=c=>Object.entries(c||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);   // 0%の部位は出さない
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r1=n=>Math.round(n*10)/10;
 const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/30):0;
@@ -265,11 +266,13 @@ function stackBar(m){
 
 /* ================= plates ================= */
 const PLATES=[[25,'var(--p25)'],[20,'var(--p20)'],[15,'var(--p15)'],[10,'var(--p10)'],[5,'var(--p5)'],[2.5,'var(--p25)'],[1.25,'var(--p2)']];
+const BARKINDS={bar:['バーベル',20],ez:['EZバー',10]};                 // 器具ごとのシャフト重量の既定値
+const barWeight=kind=>kind==='ez'?(+S.settings.ez||10):(+S.settings.bar||20);
 function plateHTML(total,kind){
-  if(kind!=='bar')return''; let rest=(+total-S.settings.bar)/2; if(!(rest>0))return'';
+  if(!BARKINDS[kind])return''; let rest=(+total-barWeight(kind))/2; if(!(rest>0))return'';
   const r2=n=>Math.round(n*100)/100;
   let out=''; for(const[w,c]of PLATES){while(rest>=w-.001){out+=`<span class="pl${w<5?' b':''}" style="background:${c}">${w}</span>`;rest=r2(rest-w);}}
-  return `<div class="plates"><span class="xs dim">片側</span>${out}${rest>.05?`<span class="xs dim">+${r2(rest)}</span>`:''}</div>`;
+  return `<div class="plates"><span class="xs dim">片側${kind==='ez'?' EZ':''}</span>${out}${rest>.05?`<span class="xs dim">+${r2(rest)}</span>`:''}</div>`;
 }
 
 /* 見ただけの日（自動生成された空メニュー）は保存しない */
@@ -379,7 +382,7 @@ function vToday(){
     const prev=lastEntry(en.exId,d);
     return `<div class="ex">
       <div class="top rowb"><div><div class="name">${esc(ex.name)}</div>
-        <div class="meta">${Object.entries(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}　目標 ${ex.repMin}–${ex.repMax}回</div></div>
+        <div class="meta">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}　目標 ${ex.repMin}–${ex.repMax}回</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
       ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${s.w}×${s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
       <div class="setrow head"><span></span><span>重量kg</span><span>回数</span><span>セット</span><span></span></div>
@@ -523,7 +526,7 @@ function vStep2(){
     return `<div class="card" style="padding:10px 11px">
       <div class="rowb">
         <div><div style="font-weight:600">${esc(ex.name)}</div>
-          <div class="xs dim">${Object.entries(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+          <div class="xs dim">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="stp" data-w="em" data-id="${id}">−</button>
           <span class="num" data-ev="${id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(id)}</span>
@@ -762,29 +765,35 @@ function vSet(){
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
     ${S.ex.map((x,i)=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div><div style="font-weight:600">${esc(x.name)}</div>
-        <div class="xs dim">${Object.entries(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')} ・ ${x.repMin}–${x.repMax}回</div></div>
+        <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')} ・ ${x.repMin}–${x.repMax}回</div></div>
       <button class="btn sm gh" data-x="edit" data-i="${i}">編集</button></div>`).join('')}
     <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button></div>
   <div class="sect">その他</div>
-  <div class="card"><label class="f">バーの重量 kg</label><input inputmode="decimal" value="${S.settings.bar}" data-bar>
+  <div class="card">
+    <div class="g2">
+      <div><label class="f">バーの重量 kg</label><input inputmode="decimal" value="${S.settings.bar}" data-bar></div>
+      <div><label class="f">EZバーの重量 kg</label><input inputmode="decimal" value="${S.settings.ez}" data-ez></div></div>
+    <div class="xs dim" style="margin-top:6px">片側プレートの計算に使います。器具が「バーベル」「EZバー」の種目だけ。</div>
     <div style="height:12px"></div>
     <button class="btn wide" data-d="ex">記録を書き出す</button><div style="height:8px"></div>
     <button class="btn wide" data-d="im">記録を読み込む</button><div style="height:8px"></div>
     <button class="btn wide danger" data-d="rs">すべて消去</button>
     <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div></div>`;
 }
-document.addEventListener('input',e=>{if(e.target.dataset.bar!==undefined){S.settings.bar=+e.target.value||20;save()}});
+document.addEventListener('input',e=>{
+  if(e.target.dataset.bar!==undefined){S.settings.bar=+e.target.value||20;save()}
+  if(e.target.dataset.ez!==undefined){S.settings.ez=+e.target.value||10;save()}});
 document.addEventListener('click',e=>{
   const x=e.target.closest('[data-x]');
   if(x){ const isNew=x.dataset.x==='new',i=+x.dataset.i;
     const ex=isNew?{name:'',c:{胸:1},kind:'bar',repMin:8,repMax:12,inc:2.5}:S.ex[i];
     const rows=k=>`<div class="g2" style="margin-bottom:8px"><select class="c_m">${MUSCLES.map(m=>`<option ${k[0]===m?'selected':''}>${m}</option>`).join('')}</select>
       <input class="c_v" inputmode="numeric" value="${Math.round(k[1]*100)}" placeholder="%"></div>`;
-    const cs=Object.entries(ex.c); while(cs.length<3)cs.push(['',0]);
+    const cs=cList(ex.c); while(cs.length<3)cs.push(['',0]);
     openSheet(`<h3>${isNew?'種目を追加':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
       <div style="height:10px"></div><div class="g2">
-        <div><label class="f">器具</label><select id="x_k">${[['bar','バーベル'],['db','ダンベル'],['mc','マシン'],['bw','自重']].map(k=>`<option value="${k[0]}" ${ex.kind===k[0]?'selected':''}>${k[1]}</option>`).join('')}</select></div>
+        <div><label class="f">器具</label><select id="x_k">${[['bar','バーベル'],['ez','EZバー'],['db','ダンベル'],['mc','マシン'],['bw','自重']].map(k=>`<option value="${k[0]}" ${ex.kind===k[0]?'selected':''}>${k[1]}</option>`).join('')}</select></div>
         <div><label class="f">増分 kg</label><input id="x_i" inputmode="decimal" value="${ex.inc}"></div>
         <div><label class="f">レップ下限</label><input id="x_a" inputmode="numeric" value="${ex.repMin}"></div>
         <div><label class="f">レップ上限</label><input id="x_b" inputmode="numeric" value="${ex.repMax}"></div></div>
@@ -799,6 +808,8 @@ document.addEventListener('click',e=>{
         const c={}; ms.forEach((m,j)=>{if(vs[j]>0)c[m]=(c[m]||0)+vs[j]});
         const t=Object.values(c).reduce((a,b)=>a+b,0); if(!t){alert('寄与率を1つ以上入れてください。');return}
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
+        for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
+        if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
         const o={...ex,name:$('#x_n').value.trim()||'名称未設定',kind:$('#x_k').value,inc:+$('#x_i').value,
           repMin:+$('#x_a').value,repMax:+$('#x_b').value,c};
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
@@ -833,9 +844,9 @@ function openSheet(html,after){ closeSheet();
   document.body.appendChild(el);sheet=el;if(after)after(); }
 function closeSheet(){if(sheet){sheet.remove();sheet=null}}
 function openPick(cb){
-  const by={}; S.ex.forEach(x=>{const m=Object.entries(x.c).sort((a,b)=>b[1]-a[1])[0][0];(by[m]=by[m]||[]).push(x)});
+  const by={}; S.ex.forEach(x=>{const m=(cList(x.c)[0]||['胸'])[0];(by[m]=by[m]||[]).push(x)});
   openSheet(`<h3>種目を選ぶ</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
-    <div id="pl">${MUSCLES.filter(m=>by[m]).map(m=>`<div class="sect">${m}</div>${by[m].map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${Object.entries(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')}</div>
+    <div id="pl">${MUSCLES.filter(m=>by[m]).map(m=>`<div class="sect">${m}</div>${by[m].map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')}</div>
     <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
     $('#pl').addEventListener('click',ev=>{const b=ev.target.closest('[data-pid]');if(b){closeSheet();cb(b.dataset.pid)}});
@@ -883,6 +894,8 @@ function migrate4(){
     for(const d in TPL.days) p[d]=TPL.days[d].map(s=>{const[n,st]=s.split(':');const ex=S.ex.find(x=>x.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
     S.program=p; }
   if((S.v||0)<4) migrate4();
+  S.settings={bar:20,ez:10,...(S.settings||{})};                        // 後から足した設定を補う
+  S.ex.forEach(e=>{for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]}); // 0%の部位が残っていたら消す
   save();
   selDate=today(); render(); })();
 </script>
