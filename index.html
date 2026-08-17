@@ -32,7 +32,9 @@
 /* touch-action:manipulation = ダブルタップの拡大だけを無効化する。
    スクロールとピンチでの拡大は残る。記録中の誤爆で画面が飛ぶのを防ぐため。 */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.45}
+/* overscroll-behavior:none = 端で引っ張ったときのバウンドを止める。
+   バウンド中は position:fixed の要素が一緒に動いて見えるため。 */
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.45;overscroll-behavior:none}
 body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
 button{cursor:pointer;border:none;background:none}
@@ -43,7 +45,10 @@ header::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.
 .hd{display:flex;align-items:baseline;gap:10px;position:relative;z-index:1}
 .hd b{font-family:var(--disp);font-size:19px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
 .hd span{font-size:12px;color:var(--dim);letter-spacing:.08em}
-main{padding:14px;max-width:640px;margin:0 auto}
+/* どのタブでも本文の高さを画面いっぱいまで確保する。
+   目標タブだけ内容が短く、他タブと挙動が変わるのを避けるため（スクロールは発生させない）。 */
+main{padding:14px;max-width:640px;margin:0 auto;min-height:calc(100vh - 125px)}
+@supports(height:100dvh){main{min-height:calc(100dvh - 125px)}}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:12px}
 .rowb{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .sect{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);margin:18px 0 8px;font-family:var(--disp);font-weight:600}
@@ -109,7 +114,9 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .cr .v{text-align:right;font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
 .stack{display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
 .stack i{display:block}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:#0A0A0BF2;backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+/* backdrop-filter は使わない。iOSで position:fixed と組み合わせると、
+   スクロールしないページでナビの位置がずれることがある。地色が黒なので不透明で十分。 */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:#0A0A0B;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;padding:9px 0 10px;color:var(--dimmer);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav button .t{font-size:10.5px;letter-spacing:.08em;font-family:var(--disp);font-weight:600}
 nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
