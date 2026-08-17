@@ -195,7 +195,9 @@ const TPL={days:{
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
+const GYMS=['ビークイック','マッスルジム'];        // 種目名に足すジム名の既定候補
 const fresh=()=>({v:4,
+  gyms:[...GYMS],
   ex:EXDEF.map(e=>({...e})),
   plan:{target:{...IDEAL}},                                  // 週の目標セット（寄与率換算）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
@@ -749,6 +751,12 @@ function vSet(){
         <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')} ・ ${x.repMin}–${x.repMax}回</div></div>
       <button class="btn sm gh" data-x="edit" data-i="${i}">編集</button></div>`).join('')}
     <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button></div>
+  <div class="sect">ジム</div>
+  <div class="card"><div class="xs dim" style="margin-bottom:8px">種目名に足す候補です。マシンはジムごとに機構が違うので、複製して別種目として記録します。</div>
+    ${(S.gyms||[]).map((g,i)=>`<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
+      <div style="font-weight:600">${esc(g)}</div>
+      <button class="xbtn" data-gymdel="${i}">✕</button></div>`).join('')||'<div class="xs dim">候補がありません。</div>'}
+    <div style="height:10px"></div><button class="btn wide" data-gymadd>＋ ジムを追加</button></div>
   <div class="sect">その他</div>
   <div class="card">
     <button class="btn wide" data-d="ex">記録を書き出す</button><div style="height:8px"></div>
@@ -757,6 +765,14 @@ function vSet(){
     <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div></div>`;
 }
 document.addEventListener('click',e=>{
+  const ga=e.target.closest('[data-gymadd]');
+  if(ga){ const n=prompt('ジム名を入れてください。'); if(n===null)return;
+    const v=n.trim(); if(!v)return;
+    if((S.gyms||[]).includes(v)){alert('すでにあります。');return}
+    (S.gyms=S.gyms||[]).push(v); save(); render(); return}
+  const gd=e.target.closest('[data-gymdel]');
+  if(gd){ const i=+gd.dataset.gymdel;
+    if(confirm(`「${S.gyms[i]}」を候補から外します。種目名は変わりません。`)){S.gyms.splice(i,1);save();render()} return}
   const x=e.target.closest('[data-x]');
   if(x){ const mode=x.dataset.x, i=+x.dataset.i, isNew=(mode==='new'||mode==='dup');
     // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
@@ -768,7 +784,10 @@ document.addEventListener('click',e=>{
     const cs=cList(ex.c); while(cs.length<3)cs.push(['',0]);
     openSheet(`<h3>${mode==='new'?'種目を追加':mode==='dup'?'種目を複製':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
-      ${mode==='dup'?'<div class="xs dim" style="margin-top:5px">ジム名などを付けて区別してください（例:「チェストプレス 本店」）。寄与率とレップ帯は複製元のままです。</div>':''}
+      ${(S.gyms||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+        ${S.gyms.map(g=>`<button class="btn sm" data-gym="${esc(g)}">＋ ${esc(g)}</button>`).join('')}
+        <button class="btn sm gh" data-gym="">ジム名を外す</button></div>`:''}
+      ${mode==='dup'?'<div class="xs dim" style="margin-top:6px">ジム名を付けて区別してください。寄与率とレップ帯は複製元のままです。</div>':''}
       <div style="height:10px"></div><div class="g2">
         <div><label class="f">レップ下限</label><input id="x_a" inputmode="numeric" value="${ex.repMin}"></div>
         <div><label class="f">レップ上限</label><input id="x_b" inputmode="numeric" value="${ex.repMax}"></div></div>
@@ -779,6 +798,12 @@ document.addEventListener('click',e=>{
       ${isNew?'':`<div style="height:8px"></div><button class="btn wide" data-x="dup" data-i="${i}">この種目を複製</button>
       <div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>`}
       <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+      // ジム名は付け替え式。押すたびに既存のジム名を外してから足す
+      sheet.querySelectorAll('[data-gym]').forEach(b=>b.onclick=()=>{
+        const n=$('#x_n'); let base=n.value.trim();
+        (S.gyms||[]).forEach(g=>{ if(base.endsWith(' '+g)) base=base.slice(0,-(g.length+1)).trim() });
+        n.value=b.dataset.gym?base+' '+b.dataset.gym:base;
+      });
       $('#x_ok').onclick=()=>{
         const ms=[...sheet.querySelectorAll('.c_m')].map(s=>s.value),vs=[...sheet.querySelectorAll('.c_v')].map(s=>+s.value||0);
         const c={}; ms.forEach((m,j)=>{if(vs[j]>0)c[m]=(c[m]||0)+vs[j]});
@@ -873,6 +898,7 @@ function migrate4(){
     S.program=p; }
   if((S.v||0)<4) migrate4();
   delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
+  if(!Array.isArray(S.gyms)) S.gyms=[...GYMS];                          // ジム名の候補
   S.ex.forEach(e=>{delete e.inc; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
   selDate=today(); render(); })();
