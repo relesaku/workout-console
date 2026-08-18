@@ -100,6 +100,9 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .stp{flex:0 0 auto;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);
   display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;color:var(--text)}
 .stp:active{background:#26262B}
+/* 目標セット数の直接入力。タップして打ち込める */
+.tnum{flex:0 0 auto;width:56px;padding:9px 4px;text-align:center;background:var(--field);
+  border:1px solid var(--line);border-radius:9px;font-family:var(--disp);font-size:19px;font-weight:600}
 .exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
 .bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
@@ -201,7 +204,7 @@ const GYMS=['ビークイック','マッスルジム'];        // 種目名に�
 const fresh=()=>({v:4,
   gyms:[...GYMS],
   ex:EXDEF.map(e=>({...e})),
-  plan:{target:{...IDEAL}},                                  // 週の目標セット（寄与率換算）
+  plan:{target:Object.fromEntries(MUSCLES.map(k=>[k,0]))},   // 週の目標セット。初期値は0（自分で決めるところから始める）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
   body:{now:{w:null,bf:null,arm:null},goal:{w:null,bf:null,arm:null,deadline:''},log:[]},
   lifts:[], logs:{}});
@@ -491,7 +494,9 @@ const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
 function vStep1(){
   const tot=targetTotal();
   return `<div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
-  <button class="btn wide" data-w="gen" style="margin-bottom:12px">目安から作る</button>
+  <div class="seg" style="margin-bottom:12px">
+    <button class="btn sm" data-w="gen">目安から作る</button>
+    <button class="btn sm gh" data-w="zero">すべて0にする</button></div>
   <div class="card">
     ${MUSCLES.map((k,i)=>
       `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
@@ -499,7 +504,7 @@ function vStep1(){
           <div class="xs dim" data-td="${k}">${tDiffHTML(k,tot)}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="stp" data-w="tm" data-k="${k}">−</button>
-          <span class="num" data-tv="${k}" style="width:34px;text-align:center;font-size:19px">${r1(targetOf(k))}</span>
+          <input class="tnum" data-tk="${k}" inputmode="numeric" value="${targetOf(k)}">
           <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
   </div>
   <div class="xs dim" style="text-align:center">目安はフィジーク体型の配分（§6.3）。<b>肩前は超過して正常</b>なので、見るのは肩中・肩後・広背。</div>`;
@@ -593,7 +598,7 @@ function refreshWeek(){
   if(wstep===1){
     const tot=targetTotal();
     MUSCLES.forEach(k=>{
-      const v=q(`[data-tv="${k}"]`); if(v)v.textContent=r1(targetOf(k));
+      const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=targetOf(k);
       const dd=q(`[data-td="${k}"]`); if(dd)dd.innerHTML=tDiffHTML(k,tot);
     });
   }
@@ -624,10 +629,12 @@ document.addEventListener('click',e=>{
   const sig=planSig();
   if(w==='tm'){S.plan.target[k]=Math.max(0,targetOf(k)-1)}
   if(w==='tp'){S.plan.target[k]=targetOf(k)+1}
+  if(w==='zero'){ if(!confirm('12部位すべての目標を0にします。よろしいですか？'))return;
+    MUSCLES.forEach(m=>S.plan.target[m]=0); }
   if(w==='gen'){ const cur=r1(targetTotal())||100;
     const n=prompt('週の総セット数（寄与率換算）を入れてください。目安配分で各部位に割り振ります。',cur);
     if(n===null)return; const t=+n; if(!(t>0)){alert('数値を入れてください。');return}
-    MUSCLES.forEach(m=>S.plan.target[m]=Math.round(IDEAL[m]/100*t*2)/2); }
+    MUSCLES.forEach(m=>S.plan.target[m]=Math.round(IDEAL[m]/100*t)); }
   if(w==='ep'){addSet(id)}
   if(w==='em'){dropSet(id)}
   if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
@@ -640,9 +647,19 @@ document.addEventListener('click',e=>{
     for(const day in TPL.days) p[day]=TPL.days[day].map(x=>{const[n,st]=x.split(':');const ex=S.ex.find(y=>y.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
     S.program=p;
     const got=contribPlan(allPlan());
-    MUSCLES.forEach(m=>S.plan.target[m]=Math.round((got[m]||0)*2)/2); }
+    MUSCLES.forEach(m=>S.plan.target[m]=Math.round(got[m]||0)); }
   save();
   if(planSig()===sig) refreshWeek(); else render();   // 構成が変わったときだけ作り直す
+});
+// 目標セット数の直接入力。数字以外と全角は弾き、整数だけを保存する（§5.1.1）
+document.addEventListener('input',e=>{
+  const k=e.target.dataset.tk; if(k===undefined)return;
+  const v=numFix(e.target.value,false);
+  if(v!==e.target.value)e.target.value=v;
+  S.plan.target[k]=Math.max(0,+v||0); save(); refreshWeek();
+});
+document.addEventListener('change',e=>{
+  const k=e.target.dataset.tk; if(k!==undefined)e.target.value=targetOf(k);   // 空欄で離れたら0を出す
 });
 
 /* ================= ① 目標 ================= */
@@ -899,7 +916,7 @@ function migrate4(){
     const got=contribPlan(allPlan());
     const has=MUSCLES.some(k=>(got[k]||0)>0);
     S.plan={target:{}};
-    MUSCLES.forEach(k=>S.plan.target[k]=has?Math.round((got[k]||0)*2)/2:IDEAL[k]);
+    MUSCLES.forEach(k=>S.plan.target[k]=has?Math.round(got[k]||0):0);
   }
   S.v=4;
 }
@@ -911,6 +928,7 @@ function migrate4(){
   if((S.v||0)<4) migrate4();
   delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
   if(!Array.isArray(S.gyms)) S.gyms=[...GYMS];                          // ジム名の候補
+  if(S.plan&&S.plan.target) MUSCLES.forEach(k=>S.plan.target[k]=Math.max(0,Math.round(+S.plan.target[k]||0)));  // 0.5刻みを廃止
   S.ex.forEach(e=>{delete e.inc; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
   selDate=today(); render(); })();
