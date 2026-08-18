@@ -107,6 +107,11 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .dcell b{font-family:var(--disp);font-size:17px;font-weight:600;line-height:1}
 .dcell.on{border-color:var(--hi);background:var(--hi-bg);color:var(--text)}
 .dcell:active{background:#2E2E34}
+/* メイン部位ごとのセクション見出し */
+.gsec{display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.08em;
+  margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.gsec span{font-size:11.5px;color:var(--dimmer);letter-spacing:.04em}
 /* 目標セット数の直接入力。タップして打ち込める */
 .tnum{flex:0 0 auto;width:56px;padding:9px 4px;text-align:center;background:var(--field);
   border:1px solid var(--line);border-radius:9px;font-family:var(--disp);font-size:19px;font-weight:600}
@@ -156,6 +161,11 @@ const store={
 
 /* ================= 種目マスタ（寄与率は合計1.0） ================= */
 const MUSCLES=['胸','肩前','肩中','肩後','広背','僧帽上背','二頭','三頭','大腿四頭','ハム臀','ふくらはぎ','腹'];
+// メイン部位のタグ（6分類）。12部位からの既定値を持ち、種目ごとに変更できる
+const GROUPS=['胸','肩','腕','背中','腹','脚'];
+const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
+  広背:'背中',僧帽上背:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',ふくらはぎ:'脚'};
+const GFIX={'デッドリフト':'背中'};        // 寄与率からの推定が実感と合わないものだけ上書き
 const MCOL={'胸':'#E23B3B','肩前':'#F7C948','肩中':'#F0B429','肩後':'#B08210','広背':'#2F6FE4','僧帽上背':'#5B93EC',
   '二頭':'#9B6BE8','三頭':'#35B57E','大腿四頭':'#4AA8B5','ハム臀':'#7A8794','ふくらはぎ':'#5E6B78','腹':'#E8734A'};
 // [名前, 寄与率(合計1.0), 器具, レップ下限, 上限, 増分kg]
@@ -202,7 +212,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='33cb28f6';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='e207a896';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -222,6 +232,9 @@ const today=()=>ds(new Date());
 const WD=['日','月','火','水','木','金','土'];
 const exOf=id=>S.ex.find(e=>e.id===id);
 const cList=c=>Object.entries(c||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);   // 0%の部位は出さない
+const groupOf=ex=>!ex?'胸':(GROUPS.includes(ex.g)?ex.g:(GFIX[ex.name]||G_OF[(cList(ex.c)[0]||[''])[0]]||'胸'));
+// 種目の配列をタグごとに分ける。空のタグは出さない
+const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>a[1].length);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r1=n=>Math.round(n*10)/10;
 const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/30):0;
@@ -296,7 +309,7 @@ function entriesFor(d){
   const log=ensureLog(d), skip=log.skip||[];   // skip = その日だけ外した種目（週メニューから戻さない）
   (S.program[parse(d).getDay()]||[]).forEach(p=>{
     if(!skip.includes(p.exId)&&!log.entries.find(x=>x.exId===p.exId)&&exOf(p.exId))
-      log.entries.push({exId:p.exId,sets:Array.from({length:p.sets},()=>({w:'',r:'',n:1,done:false}))});
+      log.entries.push({exId:p.exId,sets:[{w:'',r:'',n:1,done:false}]});   // 予定セット数ぶんの行は作らない
   });
   return log.entries;
 }
@@ -383,7 +396,8 @@ function vToday(){
     const prev=lastEntry(en.exId,d);
     return `<div class="ex">
       <div class="top rowb"><div><div class="name">${esc(ex.name)}</div>
-        <div class="meta">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+        <div class="meta">${(()=>{const pl=((S.program[parse(d).getDay()]||[]).find(x=>x.exId===en.exId)||{}).sets;
+          return pl?`<b style="color:var(--text)">予定 ${pl}セット</b>　`:''})()}${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
       ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${s.w}×${s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
       <div class="setrow head"><span></span><span>重量kg</span><span>回数</span><span>セット</span><span></span></div>
@@ -519,16 +533,17 @@ function vStep2(){
     <div class="xs dim" id="mShort" style="margin-top:4px">${short.length?'不足: '+short.join(' / '):''}</div>
   </div>
   <div class="sect">種目と週セット数</div>
-  ${ids.length?ids.map(id=>{const ex=exOf(id); if(!ex)return'';
-    return `<div class="card" style="padding:10px 11px">
+  ${ids.length?byGroup(ids.map(exOf).filter(Boolean)).map(([g,list])=>
+    `<div class="gsec">${g}<span>${list.reduce((t,x)=>t+exWeekSets(x.id),0)}セット</span></div>
+    ${list.map(ex=>`<div class="card" style="padding:10px 11px">
       <div class="rowb">
         <div><div style="font-weight:600">${esc(ex.name)}</div>
           <div class="xs dim">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
-          <button class="stp" data-w="em" data-id="${id}">−</button>
-          <span class="num" data-ev="${id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(id)}</span>
-          <button class="stp" data-w="ep" data-id="${id}">＋</button>
-          <button class="xbtn" data-w="ex" data-id="${id}">✕</button></div></div></div>`}).join('')
+          <button class="stp" data-w="em" data-id="${ex.id}">−</button>
+          <span class="num" data-ev="${ex.id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(ex.id)}</span>
+          <button class="stp" data-w="ep" data-id="${ex.id}">＋</button>
+          <button class="xbtn" data-w="ex" data-id="${ex.id}">✕</button></div></div></div>`).join('')}`).join('')
     :`<div class="empty">まだ種目がありません。<br>下から足すと、上の残りが減っていきます。</div>`}
   <button class="btn wide" data-w="addex">＋ 種目を追加</button>`;
 }
@@ -537,7 +552,8 @@ function vStep3(){
   const ids=planExIds();
   const unTotal=unassigned().reduce((t,p)=>t+p.sets,0);
   // 種目ごとに曜日ボタンを並べる。タップでその曜日のセット数が増え、最大まで行くと0に戻る
-  const rows=ids.map(id=>{const ex=exOf(id); if(!ex)return'';
+  const rows=byGroup(ids.map(exOf).filter(Boolean)).map(([g,list])=>
+    `<div class="gsec">${g}</div>`+list.map(ex=>{const id=ex.id;
     const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets, tot=exWeekSets(id);
     return `<div class="card" style="padding:11px">
       <div class="rowb" style="margin-bottom:9px">
@@ -546,7 +562,7 @@ function vStep3(){
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${DAYKEYS.map(d=>{
         const n=((S.program[d]||[]).find(p=>p.exId===id)||{sets:0}).sets;
         return `<button class="dcell${n?' on':''}" data-w="cell" data-id="${id}" data-d="${d}">
-          <i>${WD[+d]}</i><b data-cell="${id}|${d}">${n||'·'}</b></button>`}).join('')}</div></div>`}).join('');
+          <i>${WD[+d]}</i><b data-cell="${id}|${d}">${n||'·'}</b></button>`}).join('')}</div></div>`}).join('')).join('');
 
   const days=DAYKEYS.map(d=>{
     const L=S.program[d]||[];
@@ -717,10 +733,12 @@ function addStdEx(){
 function vSet(){
   return `<div class="sect">種目と寄与率</div>
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
-    ${S.ex.length?S.ex.map((x,i)=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
-      <div><div style="font-weight:600">${esc(x.name)}</div>
+    ${S.ex.length?byGroup(S.ex).map(([g,list])=>
+      `<div class="gsec" style="margin-top:10px">${g}<span>${list.length}種目</span></div>
+      ${list.map(x=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div><div style="font-weight:600">${esc(x.name)}</div>
         <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
-      <button class="btn sm gh" data-x="edit" data-i="${i}">編集</button></div>`).join('')
+      <button class="btn sm gh" data-x="edit" data-i="${S.ex.indexOf(x)}">編集</button></div>`).join('')}`).join('')
       :'<div class="empty">まだ種目がありません。<br>下から1つずつ足すか、標準の30種目を入れてください。</div>'}
     <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button>
     <div style="height:8px"></div><button class="btn wide gh" data-x="std">標準の30種目を入れる</button>
@@ -764,6 +782,9 @@ document.addEventListener('click',e=>{
     const cs=cList(ex.c);
     openSheet(`<h3>${mode==='new'?'種目を追加':mode==='dup'?'種目を複製':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
+      <div style="height:10px"></div>
+      <label class="f">メイン部位</label>
+      <select id="x_g">${GROUPS.map(g=>`<option${groupOf(ex)===g?' selected':''}>${g}</option>`).join('')}</select>
       ${(S.gyms||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
         ${S.gyms.map(g=>`<button class="btn sm" data-gym="${esc(g)}">＋ ${esc(g)}</button>`).join('')}
         <button class="btn sm gh" data-gym="">ジム名を外す</button></div>`:''}
@@ -800,7 +821,7 @@ document.addEventListener('click',e=>{
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
         for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
         if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
-        const o={...ex,name:$('#x_n').value.trim()||'名称未設定',c};
+        const o={...ex,name:$('#x_n').value.trim()||'名称未設定',g:$('#x_g').value,c};
         delete o.inc; delete o.repMin; delete o.repMax;  // 増分kgとレップ帯は廃止
         if(isNew&&S.ex.some(e=>e.name===o.name)&&!confirm(`「${o.name}」は既にあります。同じ名前のまま追加しますか？`))return;
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
@@ -835,9 +856,9 @@ function openSheet(html,after){ closeSheet();
   document.body.appendChild(el);sheet=el;if(after)after(); }
 function closeSheet(){if(sheet){sheet.remove();sheet=null}}
 function openPick(cb){
-  const by={}; S.ex.forEach(x=>{const m=(cList(x.c)[0]||['胸'])[0];(by[m]=by[m]||[]).push(x)});
+  const secs=byGroup(S.ex);
   openSheet(`<h3>種目を選ぶ</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
-    <div id="pl">${S.ex.length?MUSCLES.filter(m=>by[m]).map(m=>`<div class="sect">${m}</div>${by[m].map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')
+    <div id="pl">${S.ex.length?secs.map(([g,list])=>`<div class="sect">${g}</div>${list.map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')
       :'<div class="empty">種目がありません。<br>設定タブで種目を登録してください。</div>'}</div>
     <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
