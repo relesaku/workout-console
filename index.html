@@ -111,7 +111,6 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
 .crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
 .crb .f{position:absolute;left:0;top:0;bottom:0;background:var(--hi);opacity:.9}
-.crb .t{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--amber);opacity:.9}
 .cr .v{text-align:right;font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
 .stack{display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
 .stack i{display:block}
@@ -249,16 +248,14 @@ function contribPlan(list){
   return m;
 }
 const sum=m=>Object.values(m).reduce((a,b)=>a+b,0);
-function ratioRows(m,{ideal=false,unit=''}={}){
+function ratioRows(m,{unit=''}={}){
   const t=sum(m); if(!t) return '<div class="xs dim">データなし</div>';
-  return MUSCLES.map(k=>({k,v:m[k]||0})).filter(x=>x.v>0||ideal).sort((a,b)=>b.v-a.v).map(x=>{
-    const pc=x.v/t*100, id=IDEAL[x.k]||0, mx=Math.max(30,...MUSCLES.map(k=>(m[k]||0)/t*100));
-    const diff=pc-id;
+  const mx=Math.max(30,...MUSCLES.map(k=>(m[k]||0)/t*100));
+  return MUSCLES.map(k=>({k,v:m[k]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).map(x=>{
+    const pc=x.v/t*100;
     return `<div class="cr"><span class="dim">${x.k}</span>
-      <div class="crb"><div class="f" style="width:${pc/mx*100}%;background:${MCOL[x.k]}"></div>
-      ${ideal?`<div class="t" style="left:${Math.min(99,id/mx*100)}%"></div>`:''}</div>
-      <span class="v">${pc.toFixed(1)}%${unit?` <span class="dim xs">${r1(x.v)}${unit}</span>`:''}
-      ${ideal?`<div class="xs" style="color:${Math.abs(diff)<3?'var(--dimmer)':diff>0?'var(--green)':'var(--amber)'}">${diff>=0?'+':''}${diff.toFixed(0)}</div>`:''}</span></div>`;
+      <div class="crb"><div class="f" style="width:${pc/mx*100}%;background:${MCOL[x.k]}"></div></div>
+      <span class="v">${pc.toFixed(1)}%${unit?` <span class="dim xs">${r1(x.v)}${unit}</span>`:''}</span></div>`;
   }).join('');
 }
 function stackBar(m){
@@ -483,8 +480,6 @@ function unplace(id,day){ const L=S.program[day]||[]; if(!L.find(p=>p.exId===id)
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 
-const tDiffHTML=(k,tot)=>{const v=targetOf(k), id=tot?IDEAL[k]/100*tot:0, d=v-id;
-  return `目安 ${r1(id)}${Math.abs(d)<0.6?'':` <span style="color:${d>0?'var(--green)':'var(--amber)'}">${d>0?'+':''}${r1(d)}</span>`}`};
 const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
   const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>'
     :rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`
@@ -492,22 +487,19 @@ const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
   return `${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}`};
 
 function vStep1(){
-  const tot=targetTotal();
   return `<div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
   <div class="seg" style="margin-bottom:12px">
     <button class="btn sm" data-w="gen">目安から作る</button>
     <button class="btn sm gh" data-w="zero">すべて0にする</button></div>
   <div class="card">
     ${MUSCLES.map((k,i)=>
-      `<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
-        <div><div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:6px"></span>${k}</div>
-          <div class="xs dim" data-td="${k}">${tDiffHTML(k,tot)}</div></div>
+      `<div class="rowb" style="padding:9px 0;${i?'border-top:1px solid var(--line)':''}">
+        <div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:7px"></span>${k}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="stp" data-w="tm" data-k="${k}">−</button>
           <input class="tnum" data-tk="${k}" inputmode="numeric" value="${targetOf(k)}">
           <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
-  </div>
-  <div class="xs dim" style="text-align:center">目安はフィジーク体型の配分（§6.3）。<b>肩前は超過して正常</b>なので、見るのは肩中・肩後・広背。</div>`;
+  </div>`;
 }
 
 function vStep2(){
@@ -596,11 +588,7 @@ function refreshWeek(){
   const g=id=>document.getElementById(id), q=s=>document.querySelector(s);
   const t=g('wTotal'); if(t)t.textContent=allPlan().reduce((a,p)=>a+p.sets,0);
   if(wstep===1){
-    const tot=targetTotal();
-    MUSCLES.forEach(k=>{
-      const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=targetOf(k);
-      const dd=q(`[data-td="${k}"]`); if(dd)dd.innerHTML=tDiffHTML(k,tot);
-    });
+    MUSCLES.forEach(k=>{const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=targetOf(k)});
   }
   if(wstep===2){
     const got=contribPlan(allPlan());
