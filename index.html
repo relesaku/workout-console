@@ -203,7 +203,7 @@ let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1
 const GYMS=['ビークイック','マッスルジム'];        // 種目名に足すジム名の既定候補
 const fresh=()=>({v:4,
   gyms:[...GYMS],
-  ex:EXDEF.map(e=>({...e})),
+  ex:[],                                                     // 種目は空から始める（標準30種目は設定タブから入れられる）
   plan:{target:Object.fromEntries(MUSCLES.map(k=>[k,0]))},   // 週の目標セット。初期値は0（自分で決めるところから始める）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
   body:{now:{w:null,bf:null,arm:null},goal:{w:null,bf:null,arm:null,deadline:''},log:[]},
@@ -643,6 +643,7 @@ document.addEventListener('click',e=>{
   if(w==='dm'){unplace(id,d)}
   if(w==='dp'){place(id,d)}
   if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
+    addStdEx();                                       // 足りない標準種目を先に補う
     const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
     for(const day in TPL.days) p[day]=TPL.days[day].map(x=>{const[n,st]=x.split(':');const ex=S.ex.find(y=>y.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
     S.program=p;
@@ -757,7 +758,8 @@ document.addEventListener('click',e=>{
         S.body.now={w:+$('#n_w').value||null,bf:+$('#n_f').value||null,arm:+$('#n_a').value||null};
         save();closeSheet();render();};});
     return}
-  if(a==='new'){ const d=new Date();d.setMonth(d.getMonth()+6);
+  if(a==='new'){ if(!S.ex.length){alert('先に設定タブで種目を登録してください。');return}
+    const d=new Date();d.setMonth(d.getMonth()+6);
     openSheet(`<h3>種目の目標を追加</h3><div class="xs dim" style="margin:4px 0 12px">推定1RMがこの重量に届いたら達成です。</div>
       <label class="f">種目</label><select id="l_e">${S.ex.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
       <div style="height:10px"></div><div class="g2">
@@ -771,15 +773,26 @@ document.addEventListener('click',e=>{
   }
 });
 
+/* 標準の30種目を足す。すでに同じ名前があるものは飛ばす（上書きしない） */
+function addStdEx(){
+  let n=0;
+  EXDEF.forEach(d=>{ if(S.ex.some(e=>e.name===d.name))return;
+    S.ex.push({...d,id:S.ex.some(e=>e.id===d.id)?'u'+Date.now()+n:d.id,c:{...d.c}}); n++; });
+  return n;
+}
+
 /* ================= ④ 設定（種目と寄与率） ================= */
 function vSet(){
   return `<div class="sect">種目と寄与率</div>
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
-    ${S.ex.map((x,i)=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
+    ${S.ex.length?S.ex.map((x,i)=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div><div style="font-weight:600">${esc(x.name)}</div>
         <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')} ・ ${x.repMin}–${x.repMax}回</div></div>
-      <button class="btn sm gh" data-x="edit" data-i="${i}">編集</button></div>`).join('')}
-    <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button></div>
+      <button class="btn sm gh" data-x="edit" data-i="${i}">編集</button></div>`).join('')
+      :'<div class="empty">まだ種目がありません。<br>下から1つずつ足すか、標準の30種目を入れてください。</div>'}
+    <div style="height:10px"></div><button class="btn wide" data-x="new">＋ 種目を追加</button>
+    <div style="height:8px"></div><button class="btn wide gh" data-x="std">標準の30種目を入れる</button>
+    <div class="xs dim" style="margin-top:8px">標準の30種目は寄与率が設定済みです。同じ名前の種目があるものは飛ばします。</div></div>
   <div class="sect">ジム</div>
   <div class="card"><div class="xs dim" style="margin-bottom:8px">種目名に足す候補です。マシンはジムごとに機構が違うので、複製して別種目として記録します。</div>
     ${(S.gyms||[]).map((g,i)=>`<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
@@ -803,6 +816,8 @@ document.addEventListener('click',e=>{
   if(gd){ const i=+gd.dataset.gymdel;
     if(confirm(`「${S.gyms[i]}」を候補から外します。種目名は変わりません。`)){S.gyms.splice(i,1);save();render()} return}
   const x=e.target.closest('[data-x]');
+  if(x&&x.dataset.x==='std'){ const n=addStdEx();
+    alert(n?`${n}種目を追加しました。`:'追加する種目はありませんでした。'); if(n)save(); render(); return}
   if(x){ const mode=x.dataset.x, i=+x.dataset.i, isNew=(mode==='new'||mode==='dup');
     // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
     const ex=mode==='new'?{name:'',c:{胸:1},kind:'mc',repMin:8,repMax:12}
@@ -878,7 +893,8 @@ function closeSheet(){if(sheet){sheet.remove();sheet=null}}
 function openPick(cb){
   const by={}; S.ex.forEach(x=>{const m=(cList(x.c)[0]||['胸'])[0];(by[m]=by[m]||[]).push(x)});
   openSheet(`<h3>種目を選ぶ</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
-    <div id="pl">${MUSCLES.filter(m=>by[m]).map(m=>`<div class="sect">${m}</div>${by[m].map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')}</div>
+    <div id="pl">${S.ex.length?MUSCLES.filter(m=>by[m]).map(m=>`<div class="sect">${m}</div>${by[m].map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')
+      :'<div class="empty">種目がありません。<br>設定タブで種目を登録してください。</div>'}</div>
     <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
     $('#pl').addEventListener('click',ev=>{const b=ev.target.closest('[data-pid]');if(b){closeSheet();cb(b.dataset.pid)}});
@@ -922,9 +938,6 @@ function migrate4(){
 }
 (async()=>{ const saved=await store.get(); S=saved?Object.assign(fresh(),saved):fresh();
   if(saved&&(saved.v||0)<3) migrate();
-  if(!saved){ const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
-    for(const d in TPL.days) p[d]=TPL.days[d].map(s=>{const[n,st]=s.split(':');const ex=S.ex.find(x=>x.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
-    S.program=p; }
   if((S.v||0)<4) migrate4();
   delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
   if(!Array.isArray(S.gyms)) S.gyms=[...GYMS];                          // ジム名の候補
