@@ -100,6 +100,13 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .stp{flex:0 0 auto;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);
   display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;color:var(--text)}
 .stp:active{background:#26262B}
+/* STEP3 の曜日セル。タップでその日のセット数が増える */
+.dcell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:48px;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--dimmer)}
+.dcell i{font-style:normal;font-size:10.5px}
+.dcell b{font-family:var(--disp);font-size:17px;font-weight:600;line-height:1}
+.dcell.on{border-color:var(--hi);background:var(--hi-bg);color:var(--text)}
+.dcell:active{background:#2E2E34}
 /* 目標セット数の直接入力。タップして打ち込める */
 .tnum{flex:0 0 auto;width:56px;padding:9px 4px;text-align:center;background:var(--field);
   border:1px solid var(--line);border-radius:9px;font-family:var(--disp);font-size:19px;font-weight:600}
@@ -195,7 +202,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='719111dd';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='33cb28f6';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -468,8 +475,14 @@ function dropSet(id){ // 未配置から先に減らす
   return false;
 }
 const delPlanEx=id=>{for(const k in S.program) S.program[k]=(S.program[k]||[]).filter(p=>p.exId!==id)};
-function place(id,day){ const f=unassigned().find(p=>p.exId===id); if(!f)return; bump('u',id,-1); bump(day,id,1) }
-function unplace(id,day){ const L=S.program[day]||[]; if(!L.find(p=>p.exId===id))return; bump(day,id,-1); bump('u',id,1) }
+// 曜日セルのタップ: 0→1→…→(その日に置ける最大)→0 と循環する。週の合計は変わらない
+function cycleDay(id,day){
+  const cur=((S.program[day]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+  const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets;
+  const next=(un>0)?cur+1:0;                 // 未配置が尽きたら0に戻して全部解放する
+  const d=next-cur;
+  if(d>0){ bump('u',id,-d); bump(day,id,d) } else if(d<0){ bump(day,id,d); bump('u',id,-d) }
+}
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 
@@ -521,33 +534,34 @@ function vStep2(){
 }
 
 function vStep3(){
-  const u=unassigned();
+  const ids=planExIds();
+  const unTotal=unassigned().reduce((t,p)=>t+p.sets,0);
+  // 種目ごとに曜日ボタンを並べる。タップでその曜日のセット数が増え、最大まで行くと0に戻る
+  const rows=ids.map(id=>{const ex=exOf(id); if(!ex)return'';
+    const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets, tot=exWeekSets(id);
+    return `<div class="card" style="padding:11px">
+      <div class="rowb" style="margin-bottom:9px">
+        <div style="font-weight:600">${esc(ex.name)}</div>
+        <span class="chip ${un?'warn':''}" data-un="${id}">${un?`未配置 ${un}`:`${tot}セット配置済み`}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${DAYKEYS.map(d=>{
+        const n=((S.program[d]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+        return `<button class="dcell${n?' on':''}" data-w="cell" data-id="${id}" data-d="${d}">
+          <i>${WD[+d]}</i><b data-cell="${id}|${d}">${n||'·'}</b></button>`}).join('')}</div></div>`}).join('');
+
   const days=DAYKEYS.map(d=>{
-    const L=S.program[d]||[], dc=contribPlan(L);
-    return `<div class="card">
-      <div class="rowb" style="margin-bottom:${L.length?'8px':'0'}">
-        <div><span class="num" style="font-size:20px">${WD[+d]}</span>
-          <span class="small dim" data-dt="${d}">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span></div></div>
-      <div data-ds="${d}">${L.length?stackBar(dc):''}</div>
-      ${L.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
-        return `<div class="rowb" style="padding:7px 0;border-top:1px solid var(--line)">
-          <div><div style="font-weight:600">${esc(ex.name)}</div>
-            <div class="xs dim">${cList(ex.c).map(([k,v])=>`${k}${Math.round(v*100)}`).join(' / ')}</div></div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <button class="stp" data-w="dm" data-id="${p.exId}" data-d="${d}">−</button>
-            <span class="num" data-dv="${d}|${p.exId}" style="width:26px;text-align:center">${p.sets}</span>
-            <button class="stp" data-w="dp" data-id="${p.exId}" data-d="${d}">＋</button></div></div>`}).join('')}
-    </div>`}).join('');
-  return `${u.length?`<div class="sect">未配置</div>
-    ${u.map(p=>{const ex=exOf(p.exId);if(!ex)return'';
-      return `<div class="card" style="padding:11px">
-        <div class="rowb"><div style="font-weight:600">${esc(ex.name)}</div><span class="chip warn" data-uv="${p.exId}">${p.sets}セット</span></div>
-        <div style="display:flex;gap:4px;margin-top:9px">${DAYKEYS.map(d=>
-          `<button class="btn sm" style="flex:1;padding:12px 0" data-w="place" data-id="${p.exId}" data-d="${d}">${WD[+d]}</button>`).join('')}</div></div>`}).join('')}`
-    :`<div class="tip good">すべて曜日に配置されています。</div>`}
-  <div class="sect">曜日ごとのメニュー</div>
-  <div class="xs dim" style="margin:-4px 0 8px">−で未配置に戻し、＋で未配置から入れる。週の合計はここでは変わらない。</div>
-  ${days}
+    const L=S.program[d]||[];
+    return `<div class="rowb" style="padding:8px 0;border-top:1px solid var(--line)">
+      <div style="min-width:0">
+        <span class="num" style="font-size:17px">${WD[+d]}</span>
+        <span class="small dim" data-dt="${d}">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span>
+        <div class="xs dim" data-dl="${d}" style="margin-top:2px">${L.map(p=>(exOf(p.exId)||{}).name).filter(Boolean).join('・')||'—'}</div></div>
+      <div style="width:96px;flex:0 0 auto" data-ds="${d}">${L.length?stackBar(contribPlan(L)):''}</div></div>`}).join('');
+
+  return `<div class="tip${unTotal?' warn':' good'}" id="unBar">${unTotal?`未配置が ${unTotal} セット残っています。`:'すべて曜日に配置されています。'}</div>
+  <div class="xs dim" style="margin:-2px 0 10px">曜日をタップするとその日のセット数が増えます。最大まで行くと0に戻ります。</div>
+  ${ids.length?rows:'<div class="empty">種目がありません。<br>STEP2で種目を足してください。</div>'}
+  <div class="sect">曜日ごとの合計</div>
+  <div class="card" style="padding:2px 11px 11px">${days}</div>
   <button class="btn wide" data-w="tpl">フィジーク向け 週6分割を入れる</button>
   <div class="xs dim" style="margin-top:8px;text-align:center">目標・種目・配置をまとめて置き換えます（記録は消えません）</div>`;
 }
@@ -573,7 +587,7 @@ function vWeek(){
 
 /* いま表示している画面の構成が変わったかどうか。同じなら数字だけ差し替える（§10-2）。
    STEP2は未配置バケツを表示しないので、そこへセットが移っても作り直さない。 */
-const planSig=()=>wstep===2 ? planExIds().join(',')
+const planSig=()=>(wstep===2||wstep===3) ? planExIds().join(',')
   : DAYKEYS.concat('u').map(k=>k+':'+(S.program[k]||[]).map(p=>p.exId).join(',')).join('|');
 function refreshWeek(){
   if(tab!=='week')return;
@@ -597,9 +611,21 @@ function refreshWeek(){
       const L=S.program[d]||[];
       const t2=q(`[data-dt="${d}"]`); if(t2)t2.textContent='　'+(L.length?L.reduce((a,p)=>a+p.sets,0)+'セット':'休養');
       const s2=q(`[data-ds="${d}"]`); if(s2)s2.innerHTML=L.length?stackBar(contribPlan(L)):'';
-      L.forEach(p=>{const v=q(`[data-dv="${d}|${p.exId}"]`); if(v)v.textContent=p.sets});
+      const l2=q(`[data-dl="${d}"]`); if(l2)l2.textContent=L.map(p=>(exOf(p.exId)||{}).name).filter(Boolean).join('・')||'—';
     });
-    unassigned().forEach(p=>{const v=q(`[data-uv="${p.exId}"]`); if(v)v.textContent=p.sets+'セット'});
+    planExIds().forEach(id=>{
+      const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets;
+      const c=q(`[data-un="${id}"]`);
+      if(c){ c.textContent=un?`未配置 ${un}`:`${exWeekSets(id)}セット配置済み`; c.classList.toggle('warn',!!un) }
+      DAYKEYS.forEach(d=>{
+        const n=((S.program[d]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+        const b=q(`[data-cell="${id}|${d}"]`);
+        if(b){ b.textContent=n||'·'; b.parentElement.classList.toggle('on',!!n) }
+      });
+    });
+    const ub=g('unBar'); if(ub){ const t=unassigned().reduce((a,p)=>a+p.sets,0);
+      ub.textContent=t?`未配置が ${t} セット残っています。`:'すべて曜日に配置されています。';
+      ub.className='tip'+(t?' warn':' good'); }
   }
 }
 document.addEventListener('click',e=>{
@@ -615,9 +641,7 @@ document.addEventListener('click',e=>{
   if(w==='em'){dropSet(id)}
   if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
   if(w==='addex'){openPick(x=>{addSet(x);save();render()});return}
-  if(w==='place'){place(id,d)}
-  if(w==='dm'){unplace(id,d)}
-  if(w==='dp'){place(id,d)}
+  if(w==='cell'){cycleDay(id,d)}
   if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
     addStdEx();                                       // 足りない標準種目を先に補う
     const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
