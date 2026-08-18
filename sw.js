@@ -1,4 +1,4 @@
-const V='wc-8573369b', FONTS='wc-fonts';
+const V='wc-0d1dd40c', FONTS='wc-fonts';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -11,11 +11,18 @@ self.addEventListener('activate',e=>{
 self.addEventListener('fetch',e=>{
   const req=e.request;
   if(req.method!=='GET')return;
+  // 本体(HTML)はネットワーク優先。オンラインなら必ず最新を表示し、圏外のときだけキャッシュを使う
+  if(req.mode==='navigate'||(req.destination==='document')){
+    e.respondWith(fetch(req).then(res=>{
+      const copy=res.clone(); caches.open(V).then(c=>c.put('./index.html',copy)); return res;
+    }).catch(()=>caches.match('./index.html',{ignoreSearch:true}).then(hit=>hit||caches.match('./'))));
+    return;
+  }
   if(new URL(req.url).hostname.indexOf('fonts.g')>-1){
     e.respondWith(caches.open(FONTS).then(c=>c.match(req).then(hit=>
       hit||fetch(req).then(res=>{c.put(req,res.clone());return res}).catch(()=>hit))));
     return;
   }
-  e.respondWith(caches.match(req,{ignoreSearch:true}).then(hit=>
-    hit||fetch(req).catch(()=>req.mode==='navigate'?caches.match('./index.html'):Response.error())));
+  // アイコンなどはキャッシュ優先
+  e.respondWith(caches.match(req,{ignoreSearch:true}).then(hit=>hit||fetch(req).catch(()=>Response.error())));
 });

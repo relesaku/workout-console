@@ -195,6 +195,8 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
+const BUILD='86afa237';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
 const GYMS=['ビークイック','マッスルジム'];        // 種目名に足すジム名の既定候補
@@ -780,7 +782,8 @@ function vSet(){
     <button class="btn wide" data-d="ex">記録を書き出す</button><div style="height:8px"></div>
     <button class="btn wide" data-d="im">記録を読み込む</button><div style="height:8px"></div>
     <button class="btn wide danger" data-d="rs">すべて消去</button>
-    <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div></div>`;
+    <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div>
+    <div class="xs" style="margin-top:10px;color:var(--dimmer)">版 ${BUILD}</div></div>`;
 }
 document.addEventListener('click',e=>{
   const ga=e.target.closest('[data-gymadd]');
@@ -923,11 +926,12 @@ function migrate4(){
 <script>
 if('serviceWorker' in navigator){
   let reloaded=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{      // 譁ｰ縺励＞SW縺御ｸｻ蟆取ｨｩ繧貞叙縺｣縺溘ｉ
-    if(reloaded)return; reloaded=true; location.reload();                // 縺昴・蝣ｴ縺ｧ譁ｰ縺励＞迚医↓蟾ｮ縺玲崛縺医ｋ
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{      // 新しいSWが主導権を取ったら
+    if(reloaded)return; reloaded=true; location.reload();                // その場で新しい版に差し替える
   });
   addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
-  document.addEventListener('visibilitychange',()=>{                     // 繧｢繝励Μ縺ｫ謌ｻ繧九◆縺ｳ縺ｫ譖ｴ譁ｰ繧堤｢ｺ隱・    if(!document.hidden) navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
+  document.addEventListener('visibilitychange',()=>{                     // アプリに戻るたびに更新を確認
+    if(!document.hidden) navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
   });
 }
 </script>
