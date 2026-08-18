@@ -481,7 +481,6 @@ const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
 
 function vStep1(){
   return `<div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
-  <button class="btn wide gh" data-w="zero" style="margin-bottom:12px">すべて0にする</button>
   <div class="card">
     ${MUSCLES.map((k,i)=>
       `<div class="rowb" style="padding:9px 0;${i?'border-top:1px solid var(--line)':''}">
@@ -490,7 +489,9 @@ function vStep1(){
           <button class="stp" data-w="tm" data-k="${k}">−</button>
           <input class="tnum" data-tk="${k}" inputmode="numeric" value="${targetOf(k)}">
           <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
-  </div>`;
+  </div>
+  <div style="text-align:right;margin-top:-4px">
+    <button data-w="zero" style="font-size:12px;color:var(--dimmer);padding:6px 4px">すべて0にする</button></div>`;
 }
 
 function vStep2(){
