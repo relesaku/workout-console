@@ -1,4 +1,4 @@
-const V='wc-38eca9ba', FONTS='wc-fonts';
+const V='wc-6ec5370e', FONTS='wc-fonts';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -13,7 +13,8 @@ self.addEventListener('fetch',e=>{
   if(req.method!=='GET')return;
   // 本体(HTML)はネットワーク優先。オンラインなら必ず最新を表示し、圏外のときだけキャッシュを使う
   if(req.mode==='navigate'||(req.destination==='document')){
-    e.respondWith(fetch(req).then(res=>{
+    // GitHub Pages は max-age=600 を返すので、no-store でブラウザのHTTPキャッシュを迂回する
+    e.respondWith(fetch(req.url,{cache:'no-store'}).then(res=>{
       const copy=res.clone(); caches.open(V).then(c=>c.put('./index.html',copy)); return res;
     }).catch(()=>caches.match('./index.html',{ignoreSearch:true}).then(hit=>hit||caches.match('./'))));
     return;

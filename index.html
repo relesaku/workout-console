@@ -195,7 +195,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='984b938a';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='719111dd';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -204,7 +204,6 @@ const fresh=()=>({v:4,
   ex:[],                                                     // 種目は空から始める（標準30種目は設定タブから入れられる）
   plan:{target:Object.fromEntries(MUSCLES.map(k=>[k,0]))},   // 週の目標セット。初期値は0（自分で決めるところから始める）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
-  body:{now:{w:null,bf:null,arm:null},goal:{w:null,bf:null,arm:null,deadline:''},log:[]},
   lifts:[], logs:{}});
 
 /* ================= utils ================= */
@@ -644,28 +643,7 @@ document.addEventListener('change',e=>{
 function monthsLeft(dl){ if(!dl)return null; const a=new Date(),b=parse(dl);
   return Math.max(0,(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth())+(b.getDate()>=a.getDate()?0:-1)); }
 const hasVal=v=>v!=null&&v!=='';
-// 項目ごとに「最後に測った値」を拾う（体重だけ測った日があっても腕の値が消えない）
-function latestBody(){ const o={date:'',...S.body.now};
-  (S.body.log||[]).forEach(x=>{ ['w','bf','arm'].forEach(k=>{ if(hasVal(x[k]))o[k]=x[k] }); if(x.date>o.date)o.date=x.date; });
-  return o; }
-function bodyRow(label,key,cur,goal,unit,down){
-  const g=S.body.goal[key], start=S.body.now[key];
-  if(!hasVal(g))return'';
-  const ok=hasVal(cur)&&hasVal(start);            // 未測定なら進捗を出さない
-  const total=Math.abs(g-start)||1;
-  const moved=!ok?0:(down?Math.max(0,start-cur):Math.max(0,cur-start));
-  const pct=!ok?0:Math.min(100,moved/total*100);
-  const ml=monthsLeft(S.body.goal.deadline);
-  const per=(ok&&ml)?((g-cur)/Math.max(1,ml)):null;
-  return `<div style="margin-bottom:14px">
-    <div class="rowb"><span class="small dim">${label}</span>
-      <span><span class="num" style="font-size:22px">${ok?cur:'—'}</span><span class="dim small"> → ${g}${unit}</span></span></div>
-    <div class="bar" style="margin:5px 0 4px"><i style="width:${pct}%;background:${pct>=100?'var(--green)':'var(--hi)'}"></i></div>
-    <div class="xs dim">${!ok?'まだ測定していません（「今日の数値を記録」から入力）':
-      per!==null?`今月の目安 ${r1(cur+per)}${unit}（残り${ml}か月 / 月あたり ${per>0?'+':''}${r1(per)}${unit}）`:'期限を設定すると月あたりの目安が出ます'}</div></div>`;
-}
 function vGoal(){
-  const b=latestBody();
   const lifts=S.lifts.map((g,i)=>{
     const ex=exOf(g.exId); if(!ex)return'';
     const h=allEntries(g.exId).map(x=>bestE1(x.entry));
@@ -680,23 +658,7 @@ function vGoal(){
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="xs dim" style="margin-top:6px">推定1RM（Epley式）で判定${per!==null?`　今月の目安 ${r1(cur+per)}kg（残り${ml}か月）`:''}</div></div>`}).join('');
 
-  const hist=S.body.log.slice(-6).map(x=>`<tr><td class="dim">${x.date.slice(5).replace('-','/')}</td>
-    <td class="num">${x.w??'—'}</td><td class="num">${x.bf??'—'}</td><td class="num">${x.arm??'—'}</td></tr>`).join('');
-
-  return `<div class="sect">体づくりの目標</div>
-  <div class="card">
-    ${bodyRow('体重','w',b.w,0,'kg',S.body.goal.w<S.body.now.w)}
-    ${bodyRow('体脂肪率','bf',b.bf,0,'%',true)}
-    ${bodyRow('腕まわり','arm',b.arm,0,'cm',false)}
-    ${['w','bf','arm'].some(k=>hasVal(S.body.goal[k]))?'':
-      `<div class="empty" style="padding:6px 0 16px">目標が未設定です。<br>「目標を変更」から目標値・期限・スタート地点を入れてください。</div>`}
-    <div class="seg"><button class="btn sm" data-g="rec">今日の数値を記録</button><button class="btn sm gh" data-g="edit">目標を変更</button></div>
-  </div>
-  ${S.body.log.length?`<div class="card"><div class="xs dim" style="margin-bottom:6px">記録（最新6件）</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <tr class="xs dim"><td></td><td style="text-align:right">体重kg</td><td style="text-align:right">体脂肪%</td><td style="text-align:right">腕cm</td></tr>
-      ${hist}</table></div>`:''}
-  <div class="sect">種目の目標</div>
+  return `<div class="sect">種目の目標</div>
   ${lifts||`<div class="empty">ベンチプレス130kgなど、挙上目標を登録できます。</div>`}
   <button class="btn wide" data-g="new">＋ 種目の目標を追加</button>`;
 }
@@ -704,37 +666,6 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-g]'); if(!b)return;
   const a=b.dataset.g;
   if(a==='dl'){S.lifts.splice(+b.dataset.i,1);save();render();return}
-  if(a==='rec'){ const l=latestBody();
-    openSheet(`<h3>今日の数値を記録</h3><div style="height:12px"></div>
-      <div class="g2"><div><label class="f">体重 kg</label><input id="b_w" inputmode="decimal" value="${l.w??''}"></div>
-      <div><label class="f">体脂肪率 %</label><input id="b_f" inputmode="decimal" value="${l.bf??''}"></div></div>
-      <div style="height:10px"></div><label class="f">腕まわり cm</label><input id="b_a" inputmode="decimal" value="${l.arm??''}">
-      <div style="height:14px"></div><button class="btn pri wide" id="b_ok">保存する</button>
-      <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
-      $('#b_ok').onclick=()=>{ const t=today();
-        const rec={date:t,w:+$('#b_w').value||null,bf:+$('#b_f').value||null,arm:+$('#b_a').value||null};
-        const i=S.body.log.findIndex(x=>x.date===t); if(i>=0)S.body.log[i]=rec;else S.body.log.push(rec);
-        S.body.log.sort((x,y)=>x.date<y.date?-1:1); save();closeSheet();render(); };});
-    return}
-  if(a==='edit'){ const g=S.body.goal,n=S.body.now;
-    openSheet(`<h3>目標を変更</h3><div class="xs dim" style="margin:4px 0 12px">スタート地点は進捗バーの基準になります。</div>
-      <div class="g2">
-      <div><label class="f">目標 体重kg</label><input id="t_w" inputmode="decimal" value="${g.w??''}"></div>
-      <div><label class="f">目標 体脂肪%</label><input id="t_f" inputmode="decimal" value="${g.bf??''}"></div>
-      <div><label class="f">目標 腕cm</label><input id="t_a" inputmode="decimal" value="${g.arm??''}"></div>
-      <div><label class="f">期限</label><input id="t_d" type="date" value="${g.deadline||''}"></div></div>
-      <div class="sect">スタート地点</div>
-      <div class="g2">
-      <div><label class="f">体重kg</label><input id="n_w" inputmode="decimal" value="${n.w??''}"></div>
-      <div><label class="f">体脂肪%</label><input id="n_f" inputmode="decimal" value="${n.bf??''}"></div>
-      <div><label class="f">腕cm</label><input id="n_a" inputmode="decimal" value="${n.arm??''}"></div></div>
-      <div style="height:14px"></div><button class="btn pri wide" id="t_ok">保存する</button>
-      <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
-      $('#t_ok').onclick=()=>{
-        S.body.goal={w:+$('#t_w').value||null,bf:+$('#t_f').value||null,arm:+$('#t_a').value||null,deadline:$('#t_d').value};
-        S.body.now={w:+$('#n_w').value||null,bf:+$('#n_f').value||null,arm:+$('#n_a').value||null};
-        save();closeSheet();render();};});
-    return}
   if(a==='new'){ if(!S.ex.length){alert('先に設定タブで種目を登録してください。');return}
     const d=new Date();d.setMonth(d.getMonth()+6);
     openSheet(`<h3>種目の目標を追加</h3><div class="xs dim" style="margin:4px 0 12px">推定1RMがこの重量に届いたら達成です。</div>
@@ -798,12 +729,15 @@ document.addEventListener('click',e=>{
     alert(n?`${n}種目を追加しました。`:'追加する種目はありませんでした。'); if(n)save(); render(); return}
   if(x){ const mode=x.dataset.x, i=+x.dataset.i, isNew=(mode==='new'||mode==='dup');
     // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
-    const ex=mode==='new'?{name:'',c:{胸:1},kind:'mc'}
+    const ex=mode==='new'?{name:'',c:{},kind:'mc'}          // 新規は寄与率も空から
       :mode==='dup'?{...S.ex[i],c:{...S.ex[i].c}}
       :S.ex[i];
-    const rows=k=>`<div class="g2" style="margin-bottom:8px"><select class="c_m">${MUSCLES.map(m=>`<option ${k[0]===m?'selected':''}>${m}</option>`).join('')}</select>
-      <input class="c_v" inputmode="numeric" value="${Math.round(k[1]*100)}" placeholder="%"></div>`;
-    const cs=cList(ex.c); while(cs.length<3)cs.push(['',0]);
+    // 寄与率の1行。部位は未選択から始める（初期値を入れない）
+    const crow=(k,v)=>`<div style="display:grid;grid-template-columns:1fr 74px 40px;gap:8px;margin-bottom:8px">
+      <select class="c_m"><option value=""${k?'':' selected'}>部位を選ぶ</option>${MUSCLES.map(m=>`<option${k===m?' selected':''}>${m}</option>`).join('')}</select>
+      <input class="c_v" inputmode="numeric" value="${v?Math.round(v*100):''}" placeholder="%">
+      <button class="xbtn c_x" style="width:40px">✕</button></div>`;
+    const cs=cList(ex.c);
     openSheet(`<h3>${mode==='new'?'種目を追加':mode==='dup'?'種目を複製':'種目を編集'}</h3><div style="height:10px"></div>
       <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
       ${(S.gyms||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
@@ -812,8 +746,9 @@ document.addEventListener('click',e=>{
       ${mode==='dup'?'<div class="xs dim" style="margin-top:6px">ジム名を付けて区別してください。寄与率とレップ帯は複製元のままです。</div>':''}
 
       <div class="sect">寄与率（部位 / %）</div>
-      <div id="x_c">${cs.slice(0,4).map(rows).join('')}</div>
-      <div class="xs dim">使わない行は 0 のままで大丈夫です。</div>
+      <div id="x_c">${(cs.length?cs:[['',0]]).slice(0,4).map(([k,v])=>crow(k,v)).join('')}</div>
+      <button class="btn sm gh" id="x_add">＋ 部位を追加</button>
+      <div class="xs dim" style="margin-top:8px">合計が100%になるよう自動で調整されます。1つだけなら100%になります。</div>
       <div style="height:14px"></div><button class="btn pri wide" id="x_ok">保存する</button>
       ${isNew?'':`<div style="height:8px"></div><button class="btn wide" data-x="dup" data-i="${i}">この種目を複製</button>
       <div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>`}
@@ -824,10 +759,20 @@ document.addEventListener('click',e=>{
         (S.gyms||[]).forEach(g=>{ if(base.endsWith(' '+g)) base=base.slice(0,-(g.length+1)).trim() });
         n.value=b.dataset.gym?base+' '+b.dataset.gym:base;
       });
+      const wire=()=>sheet.querySelectorAll('.c_x').forEach(b=>b.onclick=()=>{
+        const rowsNow=sheet.querySelectorAll('#x_c > div');
+        if(rowsNow.length>1) b.parentElement.remove();
+        else { b.parentElement.querySelector('.c_m').value=''; b.parentElement.querySelector('.c_v').value=''; }
+      });
+      wire();
+      $('#x_add').onclick=()=>{ const box=$('#x_c');
+        if(box.children.length>=4){alert('部位は4つまでです。');return}
+        box.insertAdjacentHTML('beforeend',crow('',0)); wire(); };
       $('#x_ok').onclick=()=>{
         const ms=[...sheet.querySelectorAll('.c_m')].map(s=>s.value),vs=[...sheet.querySelectorAll('.c_v')].map(s=>+s.value||0);
-        const c={}; ms.forEach((m,j)=>{if(vs[j]>0)c[m]=(c[m]||0)+vs[j]});
-        const t=Object.values(c).reduce((a,b)=>a+b,0); if(!t){alert('寄与率を1つ以上入れてください。');return}
+        const c={}; ms.forEach((m,j)=>{if(m&&vs[j]>0)c[m]=(c[m]||0)+vs[j]});
+        const t=Object.values(c).reduce((a,b)=>a+b,0);
+        if(!t){alert('部位を選んで、%を入れてください。');return}
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
         for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
         if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
@@ -915,6 +860,7 @@ function migrate4(){
   if(saved&&(saved.v||0)<3) migrate();
   if((S.v||0)<4) migrate4();
   delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
+  delete S.body;                                                        // 体組成の目標は廃止（記録するのはトレーニングの結果だけ）
   if(!Array.isArray(S.gyms)) S.gyms=[];                                 // ジム名の候補
   if(S.plan&&S.plan.target) MUSCLES.forEach(k=>S.plan.target[k]=Math.max(0,Math.round(+S.plan.target[k]||0)));  // 0.5刻みを廃止
   S.ex.forEach(e=>{delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
@@ -928,7 +874,7 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{      // 新しいSWが主導権を取ったら
     if(reloaded)return; reloaded=true; location.reload();                // その場で新しい版に差し替える
   });
-  addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
+  addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}));
   document.addEventListener('visibilitychange',()=>{                     // アプリに戻るたびに更新を確認
     if(!document.hidden) navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
   });
