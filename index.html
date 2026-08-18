@@ -195,13 +195,12 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='86afa237';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='984b938a';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
-const GYMS=['ビークイック','マッスルジム'];        // 種目名に足すジム名の既定候補
 const fresh=()=>({v:4,
-  gyms:[...GYMS],
+  gyms:[],                                                   // ジム名は利用者が自分で登録する（既定は空）
   ex:[],                                                     // 種目は空から始める（標準30種目は設定タブから入れられる）
   plan:{target:Object.fromEntries(MUSCLES.map(k=>[k,0]))},   // 週の目標セット。初期値は0（自分で決めるところから始める）
   program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
@@ -775,7 +774,7 @@ function vSet(){
   <div class="card"><div class="xs dim" style="margin-bottom:8px">種目名に足す候補です。マシンはジムごとに機構が違うので、複製して別種目として記録します。</div>
     ${(S.gyms||[]).map((g,i)=>`<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
       <div style="font-weight:600">${esc(g)}</div>
-      <button class="xbtn" data-gymdel="${i}">✕</button></div>`).join('')||'<div class="xs dim">候補がありません。</div>'}
+      <button class="xbtn" data-gymdel="${i}">✕</button></div>`).join('')||'<div class="empty" style="padding:14px 0">よく行くジムを登録すると、<br>種目名にワンタップで足せます。</div>'}
     <div style="height:10px"></div><button class="btn wide" data-gymadd>＋ ジムを追加</button></div>
   <div class="sect">その他</div>
   <div class="card">
@@ -916,7 +915,7 @@ function migrate4(){
   if(saved&&(saved.v||0)<3) migrate();
   if((S.v||0)<4) migrate4();
   delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
-  if(!Array.isArray(S.gyms)) S.gyms=[...GYMS];                          // ジム名の候補
+  if(!Array.isArray(S.gyms)) S.gyms=[];                                 // ジム名の候補
   if(S.plan&&S.plan.target) MUSCLES.forEach(k=>S.plan.target[k]=Math.max(0,Math.round(+S.plan.target[k]||0)));  // 0.5刻みを廃止
   S.ex.forEach(e=>{delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
