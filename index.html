@@ -81,6 +81,7 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .ex .name{font-family:var(--disp);font-size:19px;font-weight:600}
 .ex .meta{font-size:12px;color:var(--dim)}
 .setrow{display:grid;grid-template-columns:30px 1fr 1fr 48px 44px;gap:5px;align-items:center;padding:5px 10px}
+.setrow.bw{grid-template-columns:30px 1fr 48px 44px}   /* 自重は重量欄を持たない */
 .setrow .idx{font-size:12px}
 .mult{border:1px solid var(--line);border-radius:8px;height:44px;display:flex;align-items:center;justify-content:center;
   font-family:var(--disp);font-weight:600;font-size:15px;color:var(--dimmer)}
@@ -215,7 +216,7 @@ const EXDEF=[
  ['カーフレイズ',{ふくらはぎ:1},'mc',12,20,2.5],
  ['アブローラー',{腹:1},'bw',10,15,0],
  ['ハンギングレッグレイズ',{腹:1},'bw',10,20,0]
-].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2]}));   // a[3]〜a[5]（レップ帯・増分kg）は使わない
+].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2],bw:a[2]==='bw'}));   // a[3]〜a[5]（レップ帯・増分kg）は使わない
 
 
 const TPL={days:{
@@ -227,7 +228,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='0d63f1ed';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='bd84533a';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -254,10 +255,13 @@ const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r1=n=>Math.round(n*10)/10;
 const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/30):0;
-const bestE1=en=>en?en.sets.reduce((m,s)=>Math.max(m,e1rm(s.w,s.r)),0):0;
+// 自重種目は重量を持たない。回数だけで「入力済み」と判定し、ボリュームと推定1RMは出さない
+const isBW=id=>{const e=exOf(id); return !!(e&&e.bw)};
 const cnt=s=>Math.max(1,+s.n||1);                       // 1行が何セット分か
-const volOf=en=>en?en.sets.reduce((t,s)=>t+(+s.w||0)*(+s.r||0)*cnt(s),0):0;
-const doneSets=en=>en?en.sets.filter(s=>+s.w&&+s.r):[];  // 入力済みの「行」
+const bestE1=en=>(!en||isBW(en.exId))?0:en.sets.reduce((m,s)=>Math.max(m,e1rm(s.w,s.r)),0);
+const volOf=en=>(!en||isBW(en.exId))?0:en.sets.reduce((t,s)=>t+(+s.w||0)*(+s.r||0)*cnt(s),0);
+const repsOf=en=>en?en.sets.reduce((t,s)=>t+(+s.r||0)*cnt(s),0):0;   // 自重種目の総レップ
+const doneSets=en=>!en?[]:en.sets.filter(isBW(en.exId)?(s=>+s.r>0):(s=>+s.w&&+s.r));
 const setCount=en=>doneSets(en).reduce((t,s)=>t+cnt(s),0); // 実際のセット数
 const logDates=()=>Object.keys(S.logs).filter(d=>(S.logs[d].entries||[]).some(e=>doneSets(e).length)).sort();
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
@@ -372,7 +376,8 @@ function refreshPlan(){
   });
 }
 /* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
-const partialRow=s=>((!!(+s.w))!==(!!(+s.r)))||(!!s.done&&!(+s.w&&+s.r));
+const partialRow=(s,bw)=>bw ? (!!s.done&&!(+s.r))
+  : (((!!(+s.w))!==(!!(+s.r)))||(!!s.done&&!(+s.w&&+s.r)));
 /* 全角数字・単位の打ち間違いをその場で直す */
 function numFix(v,dec){
   v=String(v).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[。、]/g,'.');
@@ -382,14 +387,15 @@ function numFix(v,dec){
 }
 /* 入力中に作り直さず、ここだけ差し替える部品 */
 function exFoot(en){
-  const prev=lastEntry(en.exId,selDate), cv=volOf(en), ce=bestE1(en);
-  const pv=prev?volOf(prev.entry):0;
+  const bw=isBW(en.exId), prev=lastEntry(en.exId,selDate);
+  const cv=bw?repsOf(en):volOf(en), pv=prev?(bw?repsOf(prev.entry):volOf(prev.entry)):0;
+  const ce=bestE1(en), u=bw?'回':'kg';
   const hist=allEntries(en.exId).filter(x=>x.date!==selDate);
-  const rec=hist.length?Math.max(...hist.map(x=>bestE1(x.entry))):0;
-  const pt=en.sets.filter(partialRow).length;
-  let c=`<span class="chip">${Math.round(cv)}kg</span>${ce?`<span class="chip">推定1RM ${r1(ce)}kg</span>`:''}`;
-  if(prev&&cv>0) c+=`<span class="chip ${cv>=pv?'up':'dn'}">前回比 ${cv>=pv?'+':''}${Math.round(cv-pv)}kg</span>`;
-  if(ce>rec+.01&&ce>0) c+=`<span class="chip pr">自己ベスト</span>`;
+  const rec=hist.length?Math.max(...hist.map(x=>bw?repsOf(x.entry):bestE1(x.entry))):0;
+  const pt=en.sets.filter(x=>partialRow(x,bw)).length;
+  let c=`<span class="chip">${Math.round(cv)}${u}</span>${ce?`<span class="chip">推定1RM ${r1(ce)}kg</span>`:''}`;
+  if(prev&&cv>0) c+=`<span class="chip ${cv>=pv?'up':'dn'}">前回比 ${cv>=pv?'+':''}${Math.round(cv-pv)}${u}</span>`;
+  if(cv>rec+.01&&cv>0&&(bw||ce>0)) c+=`<span class="chip pr">自己ベスト</span>`;
   if(pt) c+=`<span class="chip warn">未集計 ${pt}行</span>`;
   return c;
 }
@@ -420,8 +426,9 @@ function refreshToday(){
   if(g('crCard'))g('crCard').innerHTML=crCard(cr,sets);
   ents.forEach((en,ei)=>{const ex=exOf(en.exId); if(!ex)return;
     const f=document.querySelector(`[data-foot="${ei}"]`); if(f)f.innerHTML=exFoot(en);
+    const bw=!!ex.bw;
     en.sets.forEach((s,si)=>{const row=document.querySelector(`.setrow[data-ei="${ei}"][data-si="${si}"]`);
-      if(row)row.classList.toggle('warn',partialRow(s));});
+      if(row)row.classList.toggle('warn',partialRow(s,bw));});
   });
 }
 function renumber(ei){let no=0;
@@ -452,18 +459,18 @@ function vToday(){
   const body=!ents.length?`<div class="empty">この曜日のメニューは未設定です。<br>「週メニュー」で組むか、下から種目を足してください。</div>`:
   ents.map((en,ei)=>{
     const ex=exOf(en.exId); if(!ex) return '';
-    const prev=lastEntry(en.exId,d);
+    const prev=lastEntry(en.exId,d), bw=!!ex.bw;
     return `<div class="ex">
       <div class="top rowb"><div><div class="name">${esc(ex.name)}${gymChip(ex)}</div>
         <div class="meta">${(()=>{const pl=((S.program[parse(d).getDay()]||[]).find(x=>x.exId===en.exId)||{}).sets;
           return pl?`<b style="color:var(--text)">予定 ${pl}セット</b>　`:''})()}${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
-      ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${s.w}×${s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
-      <div class="setrow head"><span></span><span>重量kg</span><span>回数</span><span>セット</span><span></span></div>
+      ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
+      <div class="setrow head${bw?' bw':''}"><span></span>${bw?'':'<span>重量kg</span>'}<span>回数</span><span>セット</span><span></span></div>
       ${(()=>{let no=0;return en.sets.map((s,si)=>{const n=cnt(s);const from=no+1;no+=n;
-        return `<div class="setrow ${s.done?'done':''} ${partialRow(s)?'warn':''}" data-ei="${ei}" data-si="${si}">
+        return `<div class="setrow${bw?' bw':''} ${s.done?'done':''} ${partialRow(s,bw)?'warn':''}" data-ei="${ei}" data-si="${si}">
         <div class="idx">${n>1?`${from}-${no}`:from}</div>
-        <input inputmode="decimal" value="${s.w}" data-f="w" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].w:''}">
+        ${bw?'':`<input inputmode="decimal" value="${s.w}" data-f="w" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].w:''}">`}
         <input inputmode="numeric" value="${s.r}" data-f="r" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].r:''}">
         <button class="mult ${n>1?'on':''}" data-act="mult" data-ei="${ei}" data-si="${si}">×${n}</button>
         <button class="tick ${s.done?'on':''}" data-act="tick" data-ei="${ei}" data-si="${si}">✓</button></div>`}).join('')})()}
@@ -496,7 +503,7 @@ document.addEventListener('click',e=>{
     a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
   if(act==='tick'){const s=log.entries[ei].sets[si];s.done=!s.done;save();
     a.classList.toggle('on',s.done);const row=a.closest('.setrow');
-    row.classList.toggle('done',s.done);row.classList.toggle('warn',partialRow(s));refreshToday();return}
+    row.classList.toggle('done',s.done);row.classList.toggle('warn',partialRow(s,isBW(log.entries[ei].exId)));refreshToday();return}
   if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
   if(act==='rmset'){const s=log.entries[ei].sets,last=s[s.length-1];
     if(s.length<2)return;
@@ -790,10 +797,10 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-g]'); if(!b)return;
   const a=b.dataset.g;
   if(a==='dl'){S.lifts.splice(+b.dataset.i,1);save();render();return}
-  if(a==='new'){ if(!S.ex.length){alert('先に設定タブで種目を登録してください。');return}
+  if(a==='new'){ if(!S.ex.filter(x=>!x.bw).length){alert('先に設定タブで種目を登録してください。（自重種目は推定1RMが出ないため対象外です）');return}
     const d=new Date();d.setMonth(d.getMonth()+6);
     openSheet(`<h3>種目の目標を追加</h3><div class="xs dim" style="margin:4px 0 12px">推定1RMがこの重量に届いたら達成です。</div>
-      <label class="f">種目</label><select id="l_e">${S.ex.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+      <label class="f">種目</label><select id="l_e">${S.ex.filter(x=>!x.bw).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
       <div style="height:10px"></div><div class="g2">
       <div><label class="f">目標 kg</label><input id="l_w" inputmode="decimal" value="130"></div>
       <div><label class="f">期限</label><input id="l_d" type="date" value="${ds(d)}"></div></div>
@@ -870,6 +877,9 @@ document.addEventListener('click',e=>{
       <div style="height:10px"></div>
       <label class="f">メイン部位</label>
       <select id="x_g">${GROUPS.map(g=>`<option${groupOf(ex)===g?' selected':''}>${g}</option>`).join('')}</select>
+      <label style="display:flex;align-items:center;gap:9px;margin-top:11px;font-size:14px">
+        <input type="checkbox" id="x_bw" style="width:20px;height:20px;flex:0 0 auto"${ex.bw?' checked':''}>
+        自重（重量を入力しない）</label>
       ${(S.gyms||[]).length?`<div style="height:10px"></div><label class="f">ジム</label>
         <select id="x_gym"><option value="">指定しない</option>${S.gyms.map(g=>
           `<option${(ex.gym||'')===g?' selected':''}>${esc(g)}</option>`).join('')}</select>`:''}
@@ -900,7 +910,8 @@ document.addEventListener('click',e=>{
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
         for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
         if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
-        const gy=$('#x_gym'); const o={...ex,name:$('#x_n').value.trim()||'名称未設定',g:$('#x_g').value,gym:gy?gy.value:(ex.gym||''),c};
+        const gy=$('#x_gym'); const o={...ex,name:$('#x_n').value.trim()||'名称未設定',g:$('#x_g').value,
+          gym:gy?gy.value:(ex.gym||''),bw:$('#x_bw').checked,c};
         delete o.inc; delete o.repMin; delete o.repMax;  // 増分kgとレップ帯は廃止
         if(isNew&&S.ex.some(e=>e.name===o.name&&(e.gym||'')===(o.gym||''))&&
            !confirm(`「${o.name}${o.gym?' / '+o.gym:''}」は既にあります。同じまま追加しますか？`))return;
@@ -1006,7 +1017,8 @@ function migrate4(){
   for(const o in RENAME){ const nw=RENAME[o];
     S.ex.forEach(e=>{ if(e.c&&e.c[o]!=null){e.c[nw]=(e.c[nw]||0)+e.c[o]; delete e.c[o]} });
     if(S.plan&&S.plan.target&&S.plan.target[o]!=null){S.plan.target[nw]=(S.plan.target[nw]||0)+S.plan.target[o]; delete S.plan.target[o]} }
-  S.ex.forEach(e=>{delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
+  S.ex.forEach(e=>{if(e.bw===undefined)e.bw=(e.kind==='bw');    // 器具の指定から自重フラグを引き継ぐ
+    delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
   selDate=today(); render(); })();
 </script>
