@@ -110,11 +110,15 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .dcell b{font-family:var(--disp);font-size:17px;font-weight:600;line-height:1}
 .dcell.on{border-color:var(--hi);background:var(--hi-bg);color:var(--text)}
 .dcell:active{background:#2E2E34}
-/* メイン部位ごとのセクション見出し */
-.gsec{display:flex;justify-content:space-between;align-items:baseline;
+/* メイン部位ごとのセクション見出し。--g に部位色(§6.1由来)が入る。
+   色は縦棒と見出し文字だけに使う。地は無彩色のまま（§8） */
+.gsec{display:flex;align-items:baseline;
   font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.08em;
-  margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
-.gsec span{font-size:11.5px;color:var(--dimmer);letter-spacing:.04em;display:flex;align-items:center}
+  margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);
+  color:var(--g,var(--text))}
+.gsec::before{content:'';flex:0 0 auto;align-self:center;width:3px;height:15px;
+  border-radius:2px;background:var(--g,var(--line));margin-right:8px}
+.gsec>span{margin-left:auto;font-size:11.5px;color:var(--dimmer);letter-spacing:.04em;display:flex;align-items:center}
 .gadd{border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--text);
   font-size:12px;font-weight:500;padding:7px 11px;letter-spacing:0}
 .gadd:active{background:#26262B}
@@ -147,7 +151,7 @@ nav button.on{color:var(--text)}nav button.on svg{stroke:var(--hi)}
 .tip.good{border-color:var(--green);background:var(--green-bg)}
 .empty{text-align:center;color:var(--dim);padding:26px 14px;font-size:14px}
 .sheet{position:fixed;inset:0;z-index:60;background:#000A;display:flex;align-items:flex-end}
-.sheet .in{background:var(--surface);width:100%;max-height:86vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.sheet .in{background:var(--surface);width:100%;max-height:86vh;overflow:auto;overscroll-behavior:contain;border-radius:16px 16px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 .pick{display:block;width:100%;text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);font-size:15px}
 .pick .m{font-size:11.5px;color:var(--dim)}
 .seg{display:flex;gap:6px}.seg button{flex:1}
@@ -172,6 +176,8 @@ const store={
 const MUSCLES=['胸','肩前','肩中','肩後','広背','僧帽上背','脊柱起立','二頭','三頭','大腿四頭','ハム臀','ふくらはぎ','腹'];
 // メイン部位のタグ（6分類）。12部位からの既定値を持ち、種目ごとに変更できる
 const GROUPS=['胸','肩','腕','背中','腹','脚'];
+// 6分類の色。13部位の色(§6.1)から代表を1つずつ取る。新しい色は増やさない
+const GCOL={'胸':'#E23B3B','肩':'#F0B429','腕':'#9B6BE8','背中':'#2F6FE4','腹':'#E8734A','脚':'#4AA8B5'};
 const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
   広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',ふくらはぎ:'脚'};
 const GFIX={'デッドリフト':'背中'};        // 寄与率からの推定が実感と合わないものだけ上書き
@@ -221,7 +227,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='a412aa26';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='0d63f1ed';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -516,14 +522,8 @@ document.addEventListener('input',e=>{const f=e.target.dataset.f;
   save();refreshToday();});
 
 /* ================= ② 週メニュー ================= */
-// 目標はセット数、ボリュームは結果。予定ボリュームは持たない
-function weekLogDates(w){ return logDates().filter(d=>weekStart(d)===w) }
-function actualWeekSets(w){
-  return weekLogDates(w).reduce((t,d)=>t+(S.logs[d].entries||[]).reduce((a,e)=>a+setCount(e),0),0);
-}
-function actualWeekVolume(w){
-  return logDates().filter(d=>weekStart(d)===w).reduce((t,d)=>t+(S.logs[d].entries||[]).reduce((a,e)=>a+volOf(e),0),0);
-}
+// 目標はセット数、ボリュームは結果。予定ボリュームは持たない。
+// この画面は予定だけを扱うので、週の実績集計はここに持たない（2026-08-19）
 /* --- 週の組み立て（部位 → 種目 → 曜日）--------------------------------
    program は曜日キー "0"〜"6" に加えて "u"（未配置）を持つ。
    STEP2 で足したセットは "u" に入り、STEP3 で曜日へ移す。
@@ -612,7 +612,7 @@ function vStep2(){
   <div class="xs dim" style="margin:-2px 0 10px">部位の見出しの「＋追加」から、その部位の種目だけを選んで足せます。</div>
   ${GROUPS.map(g=>{const list=ids.map(exOf).filter(x=>x&&groupOf(x)===g);
     const n=list.reduce((t,x)=>t+exWeekSets(x.id),0);
-    return `<div class="gsec">${g}
+    return `<div class="gsec" style="--g:${GCOL[g]}">${g}
       <span><span class="num" data-gs="${g}" style="margin-right:9px">${n?n+'セット':''}</span>
         <button class="gadd" data-w="addex" data-ng="${g}">＋ 追加</button></span></div>
     ${list.length?list.map(ex=>`<div class="card" style="padding:10px 11px">
@@ -632,7 +632,7 @@ function vStep3(){
   const unTotal=unassigned().reduce((t,p)=>t+p.sets,0);
   // 種目ごとに曜日ボタンを並べる。タップでその曜日のセット数が増え、最大まで行くと0に戻る
   const rows=byGroup(ids.map(exOf).filter(Boolean)).map(([g,list])=>
-    `<div class="gsec">${g}</div>`+list.map(ex=>{const id=ex.id;
+    `<div class="gsec" style="--g:${GCOL[g]}">${g}</div>`+list.map(ex=>{const id=ex.id;
     const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets, tot=exWeekSets(id);
     return `<div class="card" style="padding:11px">
       <div class="rowb" style="margin-bottom:9px">
@@ -661,19 +661,18 @@ function vStep3(){
   <div class="xs dim" style="margin-top:8px;text-align:center">目標・種目・配置をまとめて置き換えます（記録は消えません）</div>`;
 }
 
+/* この画面は予定だけを扱う。実績は「今日」タブの予定と進捗カードで見る */
+const planDays=()=>DAYKEYS.filter(d=>(S.program[d]||[]).reduce((t,p)=>t+p.sets,0)>0).length;
 function vWeek(){
-  const totalSets=allPlan().reduce((t,p)=>t+p.sets,0);
-  const cw=weekStart(today()), av=actualWeekVolume(cw), as=actualWeekSets(cw);
+  const plan=allPlan(), totalSets=plan.reduce((t,p)=>t+p.sets,0);
   const steps=[['1','部位'],['2','種目'],['3','曜日']];
   return `<div class="card">
-    <div class="rowb"><div><div class="xs dim">今週の実績ボリューム</div>
-      <div class="num" style="font-size:28px">${Math.round(av).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div>
-      <div class="xs dim">結果として出る値。目標としては持たない</div></div>
-      <div style="text-align:right"><div class="xs dim">週の総セット</div><div class="num" id="wTotal" style="font-size:28px">${totalSets}</div></div></div>
-    <div style="height:12px"></div>
-    <div class="rowb small"><span class="dim">今週こなしたセット</span>
-      <span class="num">${as} <span class="dim">/ ${totalSets}</span></span></div>
-    <div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,totalSets?as/totalSets*100:0)}%"></i></div>
+    <div class="rowb"><div><div class="xs dim">週の総セット（予定）</div>
+      <div class="num" id="wTotal" style="font-size:28px">${totalSets}</div>
+      <div class="xs dim">実績は「今日」タブで見る</div></div>
+      <div style="text-align:right"><div class="xs dim">トレーニング日</div>
+        <div class="num" id="wDays" style="font-size:28px">${planDays()}<span class="dim" style="font-size:13px"> 日</span></div></div></div>
+    <div id="wBar">${sumBar(contribPlan(plan),totalSets)}</div>
   </div>
   <div class="seg" style="margin-bottom:12px">${steps.map(s=>
     `<button class="btn sm ${wstep===+s[0]?'pri':''}" data-w="step" data-s="${s[0]}">${s[0]}. ${s[1]}</button>`).join('')}</div>
@@ -687,7 +686,10 @@ const planSig=()=>(wstep===2||wstep===3) ? planExIds().join(',')
 function refreshWeek(){
   if(tab!=='week')return;
   const g=id=>document.getElementById(id), q=s=>document.querySelector(s);
-  const t=g('wTotal'); if(t)t.textContent=allPlan().reduce((a,p)=>a+p.sets,0);
+  const plan=allPlan(), tot=plan.reduce((a,p)=>a+p.sets,0);
+  const t=g('wTotal'); if(t)t.textContent=tot;
+  const wd=g('wDays'); if(wd)wd.innerHTML=`${planDays()}<span class="dim" style="font-size:13px"> 日</span>`;
+  const wb=g('wBar'); if(wb)wb.innerHTML=sumBar(contribPlan(plan),tot);
   if(wstep===1){
     MUSCLES.forEach(k=>{const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=targetOf(k)});
   }
@@ -816,7 +818,7 @@ function vSet(){
   return `<div class="sect">種目と寄与率</div>
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
     ${GROUPS.map(g=>{const list=S.ex.filter(x=>groupOf(x)===g);
-      return `<div class="gsec" style="margin-top:14px">${g}
+      return `<div class="gsec" style="margin-top:14px;--g:${GCOL[g]}">${g}
         <span><span style="margin-right:9px">${list.length?list.length+'種目':''}</span>
           <button class="gadd" data-x="new" data-ng="${g}">＋ 追加</button></span></div>
       ${list.length?list.map(x=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
@@ -928,17 +930,27 @@ document.addEventListener('click',e=>{
 });
 
 /* ================= sheet ================= */
+/* シートを開いている間は本体をスクロールさせない。position:fixed で固定し、閉じたら元の位置へ戻す。
+   overflow:hidden だけでは iOS のタッチスクロールが背景に抜ける。 */
+let sheetY=0;
 function openSheet(html,after){ closeSheet();
+  sheetY=window.scrollY;
+  const b=document.body.style;
+  b.position='fixed'; b.top=(-sheetY)+'px'; b.left='0'; b.right='0'; b.width='100%';
   const el=document.createElement('div');el.className='sheet';el.innerHTML=`<div class="in">${html}</div>`;
   el.addEventListener('click',ev=>{if(ev.target===el||ev.target.closest('[data-close]'))closeSheet()});
   document.body.appendChild(el);sheet=el;if(after)after(); }
-function closeSheet(){if(sheet){sheet.remove();sheet=null}}
+function closeSheet(){ if(!sheet)return;
+  sheet.remove();sheet=null;
+  const b=document.body.style;
+  b.position=''; b.top=''; b.left=''; b.right=''; b.width='';
+  window.scrollTo(0,sheetY); }
 function openPick(cb,group){
   const pool=group?S.ex.filter(x=>groupOf(x)===group):S.ex;
   const secs=byGroup(pool);
   const rows=x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}${gymChip(x)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`;
   openSheet(`<h3>${group?group+'の種目を選ぶ':'種目を選ぶ'}</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
-    <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect">${g}</div>${list.map(rows).join('')}`).join(''))
+    <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect" style="color:${GCOL[g]}">${g}</div>${list.map(rows).join('')}`).join(''))
       :`<div class="empty">${group?group+'の種目がまだありません。':'種目がありません。'}<br>設定タブの「${group||'各部位'}」から登録してください。</div>`}</div>
     <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
