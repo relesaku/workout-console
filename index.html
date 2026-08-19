@@ -100,9 +100,12 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .stp{flex:0 0 auto;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);
   display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;color:var(--text)}
 .stp:active{background:#26262B}
-/* STEP3 の曜日セル。タップでその日のセット数が増える */
+/* STEP3 の曜日セル。タップで＋1、長押しで−1。
+   長押し中に文字選択やiOSのコールアウトが出ると押し損ねるので、両方止める。 */
 .dcell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:48px;
-  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--dimmer)}
+  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--dimmer);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.dcell.lp{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
 .dcell i{font-style:normal;font-size:10.5px}
 .dcell b{font-family:var(--disp);font-size:17px;font-weight:600;line-height:1}
 .dcell.on{border-color:var(--hi);background:var(--hi-bg);color:var(--text)}
@@ -218,7 +221,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='8b83d7c4';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='9613b646';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -302,7 +305,7 @@ function render(){
   const m=$('#app'),H=$('#hsub');
   if(tab==='today'){const dt=parse(selDate);
     H.textContent=(selDate===today()?'今日':`${dt.getMonth()+1}/${dt.getDate()}（${WD[dt.getDay()]}）`)+'の記録';
-    H.style.color=selDate>today()?'var(--amber)':'';m.innerHTML=vToday()}
+    H.style.color=selDate>today()?'var(--amber)':'';m.innerHTML=vToday();refreshPlan()}
   if(tab==='week'){H.textContent='週メニュー';m.innerHTML=vWeek()}
   if(tab==='goal'){H.textContent='目標';m.innerHTML=vGoal()}
   if(tab==='set'){H.textContent='設定';m.innerHTML=vSet()}
@@ -319,6 +322,48 @@ function entriesFor(d){
       log.entries.push({exId:p.exId,sets:[{w:'',r:'',n:1,done:false}]});   // 予定セット数ぶんの行は作らない
   });
   return log.entries;
+}
+/* その日の予定（週メニューのその曜日）。✕で外した種目は「今日はやらない」なので予定からも落とす */
+function dayPlan(d){ const skip=((S.logs[d]||{}).skip)||[];
+  return (S.program[parse(d).getDay()]||[]).filter(p=>!skip.includes(p.exId)&&exOf(p.exId)); }
+const dayPlanSets=d=>dayPlan(d).reduce((t,p)=>t+p.sets,0);
+/* 予定と実績を並べる。行の顔ぶれは render 時に決め、以後は値だけ差し替える（高さを動かさない） */
+function planCard(d,ents){
+  const list=dayPlan(d), pt=list.reduce((t,p)=>t+p.sets,0);
+  if(!pt) return '';
+  const tg=contribPlan(list), got=contribLog(ents,'sets');
+  const done=ents.reduce((t,e)=>t+setCount(e),0), ok=done>=pt;
+  const rows=MUSCLES.filter(k=>(tg[k]||0)>=.05||(got[k]||0)>=.05).map(k=>
+    `<div class="cr"><span class="dim">${k}</span>
+      <div class="crb"><div class="f" data-pb="${k}" style="width:0%;background:${MCOL[k]}"></div></div>
+      <span class="v" data-pv="${k}"></span></div>`).join('');
+  return `<div class="sect">この日の予定と進捗</div>
+  <div class="card">
+    <div class="rowb" style="margin-bottom:7px"><span class="small dim">こなしたセット</span>
+      <span class="num" id="pDone" style="font-size:21px${ok?';color:var(--green)':''}"></span></div>
+    <div class="bar" style="margin-bottom:12px"><i id="pBar" style="width:0%"></i></div>
+    ${rows}
+    <div class="xs dim" style="margin-top:9px">部位の値は寄与率で割った換算セット数。週メニューに無い種目を足した分は実績にだけ乗る（予定外）。</div>
+  </div>`;
+}
+/* 入力のたびに呼ぶ。数値と棒だけを書き換え、行は増減させない */
+function refreshPlan(){
+  const d=selDate, pt=dayPlanSets(d); if(!pt)return;
+  const ents=((S.logs[d]||{}).entries)||[];
+  const tg=contribPlan(dayPlan(d)), got=contribLog(ents,'sets');
+  const done=ents.reduce((t,e)=>t+setCount(e),0), ok=done>=pt;
+  const dn=document.getElementById('pDone');
+  if(dn){ dn.innerHTML=`${done} <span class="dim" style="font-size:13px">/ 予定 ${pt}</span>`;
+    dn.style.color=ok?'var(--green)':'' }
+  const bb=document.getElementById('pBar');
+  if(bb){ bb.style.width=Math.min(100,done/pt*100)+'%'; bb.style.background=ok?'var(--green)':'' }
+  document.querySelectorAll('[data-pv]').forEach(el=>{
+    const k=el.dataset.pv, a=got[k]||0, b=tg[k]||0, hit=b>=.05&&a>=b-.05;
+    el.innerHTML=`${r1(a)}<span class="dim" style="font-weight:400"> / ${b>=.05?r1(b):'予定外'}</span>`;
+    el.style.color=hit?'var(--green)':'';
+    const bar=document.querySelector(`[data-pb="${k}"]`);
+    if(bar)bar.style.width=(b>=.05?Math.min(100,a/b*100):(a>0?100:0))+'%';
+  });
 }
 /* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
 const partialRow=s=>((!!(+s.w))!==(!!(+s.r)))||(!!s.done&&!(+s.w&&+s.r));
@@ -365,6 +410,7 @@ function refreshToday(){
   if(g('sVol'))g('sVol').innerHTML=`${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span>`;
   if(g('sSets'))g('sSets').textContent=sets;
   if(g('sBar'))g('sBar').innerHTML=sumBar(cr,sets);
+  refreshPlan();
   if(g('crCard'))g('crCard').innerHTML=crCard(cr,sets);
   ents.forEach((en,ei)=>{const ex=exOf(en.exId); if(!ex)return;
     const f=document.querySelector(`[data-foot="${ei}"]`); if(f)f.innerHTML=exFoot(en);
@@ -429,6 +475,7 @@ function vToday(){
       <div style="text-align:right"><div class="xs dim">セット</div><div class="num" id="sSets" style="font-size:28px">${sets}</div></div></div>
     <div id="sBar">${sumBar(cr,sets)}</div>
   </div>
+  <div id="planCard">${planCard(d,ents)}</div>
   ${body}
   <button class="btn wide" data-act="pickex">＋ 種目を追加</button>
   <div id="crCard">${crCard(cr,sets)}</div>`;
@@ -504,6 +551,28 @@ function cycleDay(id,day){
   const d=next-cur;
   if(d>0){ bump('u',id,-d); bump(day,id,d) } else if(d<0){ bump(day,id,d); bump('u',id,-d) }
 }
+// 長押し: その曜日から1セットだけ外して未配置へ戻す。押し間違いを1操作で直すため
+function unCycleDay(id,day){
+  const cur=((S.program[day]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+  if(cur<=0) return false;
+  bump(day,id,-1); bump('u',id,1); return true;
+}
+/* 曜日セルの長押し。押し切った時点で−1し、直後の click は捨てる（＋1と相殺しないため） */
+let lpT=null, lpCell=null, lpFired=false;
+const lpEnd=()=>{clearTimeout(lpT); if(lpCell){lpCell.classList.remove('lp');lpCell=null}};
+document.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('[data-w="cell"]'); if(!b)return;
+  lpEnd(); lpFired=false; lpCell=b;
+  lpT=setTimeout(()=>{
+    lpFired=true;
+    if(unCycleDay(b.dataset.id,b.dataset.d)){ save(); refreshWeek(); if(navigator.vibrate)navigator.vibrate(12) }
+    b.classList.add('lp'); setTimeout(()=>b.classList.remove('lp'),200);   // 減ったことを一瞬示す
+    lpCell=null; clearTimeout(lpT);
+  },420);
+});
+['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>document.addEventListener(ev,lpEnd,true));
+// 長押し中に出るコンテキストメニュー／選択メニューを止める
+document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-w="cell"]'))e.preventDefault() });
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 
@@ -581,7 +650,7 @@ function vStep3(){
       <div style="width:96px;flex:0 0 auto" data-ds="${d}">${L.length?stackBar(contribPlan(L)):''}</div></div>`}).join('');
 
   return `<div class="tip${unTotal?' warn':' good'}" id="unBar">${unTotal?`未配置が ${unTotal} セット残っています。`:'すべて曜日に配置されています。'}</div>
-  <div class="xs dim" style="margin:-2px 0 10px">曜日をタップするとその日のセット数が増えます。最大まで行くと0に戻ります。</div>
+  <div class="xs dim" style="margin:-2px 0 10px">曜日を<b style="color:var(--text)">タップで＋1</b>、<b style="color:var(--text)">長押しで−1</b>。未配置が尽きた状態でタップすると0に戻して全部解放します。</div>
   ${ids.length?rows:'<div class="empty">種目がありません。<br>STEP2で種目を足してください。</div>'}
   <div class="sect">曜日ごとの合計</div>
   <div class="card" style="padding:2px 11px 11px">${days}</div>
@@ -664,7 +733,7 @@ document.addEventListener('click',e=>{
   if(w==='em'){dropSet(id)}
   if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
   if(w==='addex'){openPick(x=>{addSet(x);save();render()});return}
-  if(w==='cell'){cycleDay(id,d)}
+  if(w==='cell'){ if(lpFired){lpFired=false;return} cycleDay(id,d) }
   if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
     addStdEx();                                       // 足りない標準種目を先に補う
     const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
