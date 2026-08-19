@@ -131,6 +131,8 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
 /* 完了した種目は沈める */
 .ex.fin{opacity:.5}
+/* 完了ボタンは他の操作から離す（誤爆すると並びが動くため） */
+.finrow{display:flex;justify-content:flex-end;padding:10px 12px 12px;margin-top:4px;border-top:1px solid var(--line)}
 .fchip{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:var(--green-bg);
   border:1px solid var(--green-bd);color:var(--green);font-family:var(--body);font-size:11px;font-weight:500;vertical-align:middle}
 .bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
@@ -230,7 +232,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='5805ddb8';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='65a4d075';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -340,9 +342,8 @@ function dayPlan(d){ const skip=((S.logs[d]||{}).skip)||[];
   return (S.program[parse(d).getDay()]||[]).filter(p=>!skip.includes(p.exId)&&exOf(p.exId)); }
 const dayPlanSets=d=>dayPlan(d).reduce((t,p)=>t+p.sets,0);
 const planOf=(d,exId)=>((dayPlan(d).find(p=>p.exId===exId)||{}).sets)||0;
-// 種目の完了。手で指定があればそれ、無ければ「予定セット数に届いたか」で自動判定する
-function isFin(en,d){ if(en.fin===true)return true; if(en.fin===false)return false;
-  const pl=planOf(d,en.exId); return pl>0&&setCount(en)>=pl; }
+// 完了は手で押したときだけ。予定より多くやることがあるので自動判定はしない
+const isFin=en=>en.fin===true;
 /* 予定と実績を並べる。行の顔ぶれは render 時に決め、以後は値だけ差し替える（高さを動かさない） */
 function planCard(d,ents){
   const list=dayPlan(d), pt=list.reduce((t,p)=>t+p.sets,0);
@@ -464,11 +465,11 @@ function vToday(){
   const cr=contribLog(ents,basis);
 
   // 未完了を上、完了を下に。並べ替えは描画時だけ（入力中に動くと指の位置が変わる）
-  const order=ents.map((en,ei)=>({en,ei})).sort((a,b)=>(isFin(a.en,d)?1:0)-(isFin(b.en,d)?1:0));
+  const order=ents.map((en,ei)=>({en,ei})).sort((a,b)=>(isFin(a.en)?1:0)-(isFin(b.en)?1:0));
   const body=!ents.length?`<div class="empty">この曜日のメニューは未設定です。<br>「週メニュー」で組むか、上から種目を足してください。</div>`:
   order.map(({en,ei})=>{
     const ex=exOf(en.exId); if(!ex) return '';
-    const prev=lastEntry(en.exId,d), bw=!!ex.bw, fin=isFin(en,d);
+    const prev=lastEntry(en.exId,d), bw=!!ex.bw, fin=isFin(en);
     return `<div class="ex${fin?' fin':''}">
       <div class="top rowb"><div><div class="name">${esc(ex.name)}${gymChip(ex)}${fin?'<span class="fchip">完了</span>':''}</div>
         <div class="meta">${(()=>{const pl=((S.program[parse(d).getDay()]||[]).find(x=>x.exId===en.exId)||{}).sets;
@@ -485,8 +486,8 @@ function vToday(){
       <div class="exfoot"><button class="btn sm" data-act="addset" data-ei="${ei}">行を追加</button>
         <button class="btn sm gh" data-act="rmset" data-ei="${ei}">削除</button>
         ${prev?`<button class="btn sm" data-act="copyprev" data-ei="${ei}">前回をコピー</button>`:''}
-        <button class="btn sm${fin?'':' pri'}" data-act="fin" data-ei="${ei}">${fin?'完了を戻す':'完了'}</button>
         <span data-foot="${ei}">${exFoot(en)}</span></div>
+      <div class="finrow"><button class="btn sm${fin?'':' pri'}" data-act="fin" data-ei="${ei}">${fin?'完了を戻す':'この種目を完了'}</button></div>
     </div>`}).join('');
 
   return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
@@ -510,7 +511,7 @@ document.addEventListener('click',e=>{
   // ×n・✓ は画面を作り直さず、その場だけ更新する（キーボードとフォーカスを保つ）
   if(act==='mult'){const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
     a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
-  if(act==='fin'){const en=log.entries[ei]; en.fin=!isFin(en,selDate); save(); render(); return}
+  if(act==='fin'){const en=log.entries[ei]; en.fin=!isFin(en); save(); render(); return}
   if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
   if(act==='rmset'){const s=log.entries[ei].sets,last=s[s.length-1];
     if(s.length<2)return;
