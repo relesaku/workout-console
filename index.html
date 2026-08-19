@@ -228,7 +228,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='bd84533a';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='32db76fb';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -353,7 +353,7 @@ function planCard(d,ents){
       <span class="num" id="pDone" style="font-size:21px${ok?';color:var(--green)':''}"></span></div>
     <div class="bar" style="margin-bottom:12px"><i id="pBar" style="width:0%"></i></div>
     ${rows}
-    <div class="xs dim" style="margin-top:9px">部位の値は寄与率で割った換算セット数。週メニューに無い種目を足した分は実績にだけ乗る（予定外）。</div>
+    <div class="xs dim" style="margin-top:9px">下は<b>実際にこなした量</b>。寄与率で割った換算セット数で、棒の長さは部位どうしの比較。</div>
   </div>`;
 }
 /* 入力のたびに呼ぶ。数値と棒だけを書き換え、行は増減させない */
@@ -367,12 +367,14 @@ function refreshPlan(){
     dn.style.color=ok?'var(--green)':'' }
   const bb=document.getElementById('pBar');
   if(bb){ bb.style.width=Math.min(100,done/pt*100)+'%'; bb.style.background=ok?'var(--green)':'' }
-  document.querySelectorAll('[data-pv]').forEach(el=>{
-    const k=el.dataset.pv, a=got[k]||0, b=tg[k]||0, hit=b>=.05&&a>=b-.05;
-    el.innerHTML=`${r1(a)}<span class="dim" style="font-weight:400"> / ${b>=.05?r1(b):'予定外'}</span>`;
-    el.style.color=hit?'var(--green)':'';
+  const cells=[...document.querySelectorAll('[data-pv]')];
+  const mx=Math.max(0.05,...cells.map(el=>got[el.dataset.pv]||0));   // 一番多い部位を基準に伸ばす
+  cells.forEach(el=>{
+    const k=el.dataset.pv, a=got[k]||0;
+    el.innerHTML=a?`${r1(a)}<span class="dim" style="font-weight:400">set</span>`:'<span class="dim" style="font-weight:400">—</span>';
+    el.style.color='';
     const bar=document.querySelector(`[data-pb="${k}"]`);
-    if(bar)bar.style.width=(b>=.05?Math.min(100,a/b*100):(a>0?100:0))+'%';
+    if(bar)bar.style.width=(a/mx*100)+'%';
   });
 }
 /* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
@@ -406,7 +408,7 @@ function sumBar(cr,sets){
 }
 function crCard(cr,sets){
   if(!sets)return'';
-  return `<div class="sect">この日の部位別 寄与率</div>
+  return `<div class="sect" style="margin-top:30px">この日の部位別 寄与率</div>
   <div class="card"><div class="seg" style="margin-bottom:10px">
     <button class="btn sm ${basis==='sets'?'pri':''}" data-basis="sets">セット基準</button>
     <button class="btn sm ${basis==='vol'?'pri':''}" data-basis="vol">ボリューム基準</button></div>
@@ -517,7 +519,7 @@ document.addEventListener('click',e=>{
     (log.skip=log.skip||[]).push(en.exId);log.entries.splice(ei,1);save();render()}
   if(act==='pickex'){openPick(id=>{ if(log.skip)log.skip=log.skip.filter(x=>x!==id);
     if(!log.entries.find(x=>x.exId===id))
-      log.entries.push({exId:id,sets:[{w:'',r:'',n:1,done:false},{w:'',r:'',n:1,done:false},{w:'',r:'',n:1,done:false}]});
+      log.entries.push({exId:id,sets:[{w:'',r:'',n:1,done:false}]});   // 1行だけ。行が要るのは重量を変えるときだけ
     save();render()})}
 });
 // 入力中は保存と集計更新のみ。render() は呼ばない（呼ぶとフォーカスが飛ぶ）
