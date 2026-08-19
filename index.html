@@ -221,7 +221,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='9613b646';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='a412aa26';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -609,9 +609,13 @@ function vStep2(){
     <div class="xs dim" id="mShort" style="margin-top:4px">${short.length?'不足: '+short.join(' / '):''}</div>
   </div>
   <div class="sect">種目と週セット数</div>
-  ${ids.length?byGroup(ids.map(exOf).filter(Boolean)).map(([g,list])=>
-    `<div class="gsec">${g}<span>${list.reduce((t,x)=>t+exWeekSets(x.id),0)}セット</span></div>
-    ${list.map(ex=>`<div class="card" style="padding:10px 11px">
+  <div class="xs dim" style="margin:-2px 0 10px">部位の見出しの「＋追加」から、その部位の種目だけを選んで足せます。</div>
+  ${GROUPS.map(g=>{const list=ids.map(exOf).filter(x=>x&&groupOf(x)===g);
+    const n=list.reduce((t,x)=>t+exWeekSets(x.id),0);
+    return `<div class="gsec">${g}
+      <span><span class="num" data-gs="${g}" style="margin-right:9px">${n?n+'セット':''}</span>
+        <button class="gadd" data-w="addex" data-ng="${g}">＋ 追加</button></span></div>
+    ${list.length?list.map(ex=>`<div class="card" style="padding:10px 11px">
       <div class="rowb">
         <div><div style="font-weight:600">${esc(ex.name)}${gymChip(ex)}</div>
           <div class="xs dim">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
@@ -619,9 +623,8 @@ function vStep2(){
           <button class="stp" data-w="em" data-id="${ex.id}">−</button>
           <span class="num" data-ev="${ex.id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(ex.id)}</span>
           <button class="stp" data-w="ep" data-id="${ex.id}">＋</button>
-          <button class="xbtn" data-w="ex" data-id="${ex.id}">✕</button></div></div></div>`).join('')}`).join('')
-    :`<div class="empty">まだ種目がありません。<br>下から足すと、上の残りが減っていきます。</div>`}
-  <button class="btn wide" data-w="addex">＋ 種目を追加</button>`;
+          <button class="xbtn" data-w="ex" data-id="${ex.id}">✕</button></div></div></div>`).join('')
+      :'<div class="xs dim" style="padding:2px 0 4px">まだありません</div>'}`}).join('')}`;
 }
 
 function vStep3(){
@@ -697,6 +700,9 @@ function refreshWeek(){
     });
     const sh=g('mShort'); if(sh){const s=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);sh.textContent=s.length?'不足: '+s.join(' / '):''}
     planExIds().forEach(id=>{const v=q(`[data-ev="${id}"]`); if(v)v.textContent=exWeekSets(id)});
+    GROUPS.forEach(g=>{const el=q(`[data-gs="${g}"]`); if(!el)return;
+      const n=planExIds().map(exOf).filter(x=>x&&groupOf(x)===g).reduce((t,x)=>t+exWeekSets(x.id),0);
+      el.textContent=n?n+'セット':''});
   }
   if(wstep===3){
     DAYKEYS.forEach(d=>{
@@ -732,7 +738,7 @@ document.addEventListener('click',e=>{
   if(w==='ep'){addSet(id)}
   if(w==='em'){dropSet(id)}
   if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
-  if(w==='addex'){openPick(x=>{addSet(x);save();render()});return}
+  if(w==='addex'){openPick(x=>{addSet(x);save();render()}, b.dataset.ng);return}
   if(w==='cell'){ if(lpFired){lpFired=false;return} cycleDay(id,d) }
   if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
     addStdEx();                                       // 足りない標準種目を先に補う
@@ -927,11 +933,13 @@ function openSheet(html,after){ closeSheet();
   el.addEventListener('click',ev=>{if(ev.target===el||ev.target.closest('[data-close]'))closeSheet()});
   document.body.appendChild(el);sheet=el;if(after)after(); }
 function closeSheet(){if(sheet){sheet.remove();sheet=null}}
-function openPick(cb){
-  const secs=byGroup(S.ex);
-  openSheet(`<h3>種目を選ぶ</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
-    <div id="pl">${S.ex.length?secs.map(([g,list])=>`<div class="sect">${g}</div>${list.map(x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}${gymChip(x)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`).join('')}`).join('')
-      :'<div class="empty">種目がありません。<br>設定タブで種目を登録してください。</div>'}</div>
+function openPick(cb,group){
+  const pool=group?S.ex.filter(x=>groupOf(x)===group):S.ex;
+  const secs=byGroup(pool);
+  const rows=x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}${gymChip(x)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`;
+  openSheet(`<h3>${group?group+'の種目を選ぶ':'種目を選ぶ'}</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
+    <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect">${g}</div>${list.map(rows).join('')}`).join(''))
+      :`<div class="empty">${group?group+'の種目がまだありません。':'種目がありません。'}<br>設定タブの「${group||'各部位'}」から登録してください。</div>`}</div>
     <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
     $('#pl').addEventListener('click',ev=>{const b=ev.target.closest('[data-pid]');if(b){closeSheet();cb(b.dataset.pid)}});
