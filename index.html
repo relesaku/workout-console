@@ -157,6 +157,10 @@ nav button.on{color:var(--text)}nav button.on svg{stroke:var(--hi)}
 .empty{text-align:center;color:var(--dim);padding:26px 14px;font-size:14px}
 .sheet{position:fixed;inset:0;z-index:60;background:#000A;display:flex;align-items:flex-end}
 .sheet .in{background:var(--surface);width:100%;max-height:86vh;overflow:auto;overscroll-behavior:contain;border-radius:16px 16px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+/* シート上部のつまみと閉じるボタン。下までスクロールしなくても閉じられる */
+.grab{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;align-items:center;
+  margin:-16px -14px 8px;padding:11px 12px 9px;background:var(--surface);border-bottom:1px solid var(--line)}
+.grab i{position:absolute;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
 .pick{display:block;width:100%;text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);font-size:15px}
 .pick .m{font-size:11.5px;color:var(--dim)}
 .seg{display:flex;gap:6px}.seg button{flex:1}
@@ -232,7 +236,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='33fdeb39';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='728e4af1';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -268,6 +272,11 @@ const repsOf=en=>en?en.sets.reduce((t,s)=>t+(+s.r||0)*cnt(s),0):0;   // 自重�
 const doneSets=en=>!en?[]:en.sets.filter(isBW(en.exId)?(s=>+s.r>0):(s=>+s.w&&+s.r));
 const setCount=en=>doneSets(en).reduce((t,s)=>t+cnt(s),0); // 実際のセット数
 const logDates=()=>Object.keys(S.logs).filter(d=>(S.logs[d].entries||[]).some(e=>doneSets(e).length)).sort();
+// 今週の実績を部位ごとに寄与率換算で合計する
+function weekContrib(w){ const m={}; MUSCLES.forEach(k=>m[k]=0);
+  logDates().filter(d=>weekStart(d)===w).forEach(d=>{ const c=contribLog((S.logs[d].entries||[]),'sets');
+    MUSCLES.forEach(k=>m[k]+=c[k]||0) });
+  return m; }
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
   for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
 const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
@@ -678,6 +687,27 @@ function vStep3(){
 
 /* この画面は予定だけを扱う。実績は「今日」タブの予定と進捗カードで見る */
 const planDays=()=>DAYKEYS.filter(d=>(S.program[d]||[]).reduce((t,p)=>t+p.sets,0)>0).length;
+// 今週あとどの部位が何セット残っているか
+function weekLeftCard(){
+  const tg=contribPlan(allPlan()), got=weekContrib(weekStart(today()));
+  const ks=MUSCLES.filter(k=>(tg[k]||0)>=.05||(got[k]||0)>=.05);
+  if(!ks.length) return '';
+  const left=ks.reduce((t,k)=>t+Math.max(0,(tg[k]||0)-(got[k]||0)),0);
+  return `<div class="sect">今週の部位別 予定と実績</div>
+  <div class="card">
+    <div class="rowb" style="margin-bottom:11px"><span class="small dim">残り合計</span>
+      <span class="num" style="font-size:21px${left<.05?';color:var(--green)':''}">${left<.05?'すべて達成':r1(left)+'セット'}</span></div>
+    ${ks.map(k=>{const b=tg[k]||0,a=got[k]||0,rest=b-a,pct=b>=.05?Math.min(100,a/b*100):(a>0?100:0);
+      const lab=b<.05?'<span class="dim">予定外</span>'
+        :rest<.05?'<span style="color:var(--green)">達成</span>'
+        :`<span style="color:var(--amber)">残り ${r1(rest)}</span>`;
+      return `<div style="margin-bottom:9px">
+        <div class="rowb xs"><span>${k}</span>
+          <span class="num">${r1(a)} <span class="dim">/ ${b>=.05?r1(b):'—'}</span>　${lab}</span></div>
+        <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    <div class="xs dim" style="margin-top:4px">値は寄与率換算のセット数。予定は週メニュー全体、実績は今週(月〜日)の記録。</div>
+  </div>`;
+}
 function vWeek(){
   const plan=allPlan(), totalSets=plan.reduce((t,p)=>t+p.sets,0);
   const steps=[['1','部位'],['2','種目'],['3','曜日']];
@@ -689,6 +719,7 @@ function vWeek(){
         <div class="num" id="wDays" style="font-size:28px">${planDays()}<span class="dim" style="font-size:13px"> 日</span></div></div></div>
     <div id="wBar">${sumBar(contribPlan(plan),totalSets)}</div>
   </div>
+  ${weekLeftCard()}
   <div class="seg" style="margin-bottom:12px">${steps.map(s=>
     `<button class="btn sm ${wstep===+s[0]?'pri':''}" data-w="step" data-s="${s[0]}">${s[0]}. ${s[1]}</button>`).join('')}</div>
   ${wstep===1?vStep1():wstep===2?vStep2():vStep3()}`;
@@ -857,21 +888,10 @@ function vSet(){
     <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div>
     <div class="xs" style="margin-top:10px;color:var(--dimmer)">版 ${BUILD}</div></div>`;
 }
-document.addEventListener('click',e=>{
-  const ga=e.target.closest('[data-gymadd]');
-  if(ga){ const n=prompt('ジム名を入れてください。'); if(n===null)return;
-    const v=n.trim(); if(!v)return;
-    if((S.gyms||[]).includes(v)){alert('すでにあります。');return}
-    (S.gyms=S.gyms||[]).push(v); save(); render(); return}
-  const gd=e.target.closest('[data-gymdel]');
-  if(gd){ const i=+gd.dataset.gymdel;
-    if(confirm(`「${S.gyms[i]}」を候補から外します。種目名は変わりません。`)){S.gyms.splice(i,1);save();render()} return}
-  const x=e.target.closest('[data-x]');
-  if(x&&x.dataset.x==='std'){ const n=addStdEx();
-    alert(n?`${n}種目を追加しました。`:'追加する種目はありませんでした。'); if(n)save(); render(); return}
-  if(x){ const mode=x.dataset.x, i=+x.dataset.i, isNew=(mode==='new'||mode==='dup');
+let afterNew=null;   // ピッカーから新規作成したとき、その種目をその日に足すためのコールバック
+function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
     // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
-    const ex=mode==='new'?{name:'',c:{},kind:'mc',g:x.dataset.ng||''}   // 新規は寄与率も空から。押したセクションをメイン部位の初期値にする
+    const ex=mode==='new'?{name:'',c:{},kind:'mc',g:ng||''}   // 新規は寄与率も空から。押したセクションをメイン部位の初期値にする
       :mode==='dup'?{...S.ex[i],c:{...S.ex[i].c}}
       :S.ex[i];
     // 寄与率の1行。部位は未選択から始める（初期値を入れない）
@@ -924,10 +944,26 @@ document.addEventListener('click',e=>{
         if(isNew&&S.ex.some(e=>e.name===o.name&&(e.gym||'')===(o.gym||''))&&
            !confirm(`「${o.name}${o.gym?' / '+o.gym:''}」は既にあります。同じまま追加しますか？`))return;
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
-        save();closeSheet();render();};
+        save();closeSheet();
+        if(isNew&&afterNew){const f=afterNew;afterNew=null;f(o.id);return}
+        render();};
       const del=$('#x_del'); if(del)del.onclick=()=>{if(confirm('この種目を削除します。過去の記録は残ります。')){S.ex.splice(i,1);save();closeSheet();render()}};
     });
-    return}
+}
+
+document.addEventListener('click',e=>{
+  const ga=e.target.closest('[data-gymadd]');
+  if(ga){ const n=prompt('ジム名を入れてください。'); if(n===null)return;
+    const v=n.trim(); if(!v)return;
+    if((S.gyms||[]).includes(v)){alert('すでにあります。');return}
+    (S.gyms=S.gyms||[]).push(v); save(); render(); return}
+  const gd=e.target.closest('[data-gymdel]');
+  if(gd){ const i=+gd.dataset.gymdel;
+    if(confirm(`「${S.gyms[i]}」を候補から外します。種目名は変わりません。`)){S.gyms.splice(i,1);save();render()} return}
+  const x=e.target.closest('[data-x]');
+  if(x&&x.dataset.x==='std'){ const n=addStdEx();
+    alert(n?`${n}種目を追加しました。`:'追加する種目はありませんでした。'); if(n)save(); render(); return}
+  if(x){ openExEdit(x.dataset.x, +x.dataset.i, x.dataset.ng); return}
   const d=e.target.closest('[data-d]'); if(!d||!['ex','im','rs','dl'].includes(d.dataset.d))return;
   if(d.dataset.d==='dl'){ prune();
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
@@ -956,9 +992,20 @@ function openSheet(html,after){ closeSheet();
   sheetY=window.scrollY;
   const b=document.body.style;
   b.position='fixed'; b.top=(-sheetY)+'px'; b.left='0'; b.right='0'; b.width='100%';
-  const el=document.createElement('div');el.className='sheet';el.innerHTML=`<div class="in">${html}</div>`;
+  const el=document.createElement('div');el.className='sheet';
+  el.innerHTML=`<div class="in"><div class="grab"><i></i><button class="xbtn" data-close>✕</button></div>${html}</div>`;
   el.addEventListener('click',ev=>{if(ev.target===el||ev.target.closest('[data-close]'))closeSheet()});
-  document.body.appendChild(el);sheet=el;if(after)after(); }
+  document.body.appendChild(el);sheet=el;
+  // 上から下へスワイプで閉じる。中身が一番上まで戻っているときだけ反応する
+  const box=el.querySelector('.in'); let y0=null,dy=0;
+  box.addEventListener('touchstart',ev=>{ y0=box.scrollTop<=0?ev.touches[0].clientY:null; dy=0 },{passive:true});
+  box.addEventListener('touchmove',ev=>{ if(y0==null)return; dy=ev.touches[0].clientY-y0;
+    box.style.transform=dy>0?`translateY(${Math.min(dy,240)}px)`:'' },{passive:true});
+  box.addEventListener('touchend',()=>{ if(y0==null)return;
+    if(dy>80){closeSheet();return}
+    box.style.transition='transform .18s'; box.style.transform='';
+    setTimeout(()=>{ if(box)box.style.transition='' },200); y0=null });
+  if(after)after(); }
 function closeSheet(){ if(!sheet)return;
   sheet.remove();sheet=null;
   const b=document.body.style;
@@ -971,7 +1018,9 @@ function openPick(cb,group){
   openSheet(`<h3>${group?group+'の種目を選ぶ':'種目を選ぶ'}</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
     <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect" style="color:${GCOL[g]}">${g}</div>${list.map(rows).join('')}`).join(''))
       :`<div class="empty">${group?group+'の種目がまだありません。':'種目がありません。'}<br>設定タブの「${group||'各部位'}」から登録してください。</div>`}</div>
-    <div style="height:10px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+    <div style="height:12px"></div><button class="btn wide" id="pk_new">＋ 新しい種目を作る</button>
+    <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+    $('#pk_new').onclick=()=>{ afterNew=cb; openExEdit('new','',group||'') };
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
     $('#pl').addEventListener('click',ev=>{const b=ev.target.closest('[data-pid]');if(b){closeSheet();cb(b.dataset.pid)}});
   });
