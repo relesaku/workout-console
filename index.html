@@ -86,6 +86,8 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
 .mult{border:1px solid var(--line);border-radius:8px;height:44px;display:flex;align-items:center;justify-content:center;
   font-family:var(--disp);font-weight:600;font-size:15px;color:var(--dimmer)}
 .mult.on{background:var(--hi-bg);border-color:var(--hi-bd);color:var(--text)}
+.mult{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.mult.lp{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
 .setrow.head span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);font-family:var(--disp);font-weight:600;text-align:center}
 .setrow .idx{font-family:var(--disp);font-weight:600;color:var(--dimmer);text-align:center}
 .setrow input{text-align:center;padding:11px 4px;font-family:var(--disp);font-size:18px;font-weight:600}
@@ -236,7 +238,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='728e4af1';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='f5ad99f3';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -485,7 +487,7 @@ function vToday(){
           return pl?`<b style="color:var(--text)">予定 ${pl}セット</b>　`:''})()}${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
       ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
-      <div class="setrow head${bw?' bw':''}"><span></span>${bw?'':'<span>重量kg</span>'}<span>回数</span><span>セット</span></div>
+      <div class="setrow head${bw?' bw':''}"><span></span>${bw?'':'<span>重量kg</span>'}<span>回数</span><span title="タップで＋1／長押しで−1">セット</span></div>
       ${(()=>{let no=0;return en.sets.map((s,si)=>{const n=cnt(s);const from=no+1;no+=n;
         return `<div class="setrow${bw?' bw':''} ${partialRow(s,bw)?'warn':''}" data-ei="${ei}" data-si="${si}">
         <div class="idx">${n>1?`${from}-${no}`:from}</div>
@@ -518,7 +520,8 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('[data-act]'); if(!a)return;
   const {act}=a.dataset,ei=+a.dataset.ei,si=+a.dataset.si,log=S.logs[selDate];
   // ×n・✓ は画面を作り直さず、その場だけ更新する（キーボードとフォーカスを保つ）
-  if(act==='mult'){const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
+  if(act==='mult'){ if(lpFired){lpFired=false;return}
+    const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
     a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
   if(act==='fin'){const en=log.entries[ei]; en.fin=!isFin(en); save(); render(); return}
   if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
@@ -585,18 +588,26 @@ function unCycleDay(id,day){
 let lpT=null, lpCell=null, lpFired=false;
 const lpEnd=()=>{clearTimeout(lpT); if(lpCell){lpCell.classList.remove('lp');lpCell=null}};
 document.addEventListener('pointerdown',e=>{
-  const b=e.target.closest('[data-w="cell"]'); if(!b)return;
+  const b=e.target.closest('[data-w="cell"],[data-act="mult"]'); if(!b)return;
   lpEnd(); lpFired=false; lpCell=b;
   lpT=setTimeout(()=>{
     lpFired=true;
-    if(unCycleDay(b.dataset.id,b.dataset.d)){ save(); refreshWeek(); if(navigator.vibrate)navigator.vibrate(12) }
+    let hit=false;
+    if(b.dataset.act==='mult'){                       // 今日タブの ×n を1つ減らす
+      const en=(S.logs[selDate]||{entries:[]}).entries[+b.dataset.ei];
+      const st=en&&en.sets[+b.dataset.si];
+      if(st&&cnt(st)>1){ st.n=cnt(st)-1; save();
+        b.textContent='×'+cnt(st); b.classList.toggle('on',cnt(st)>1);
+        renumber(+b.dataset.ei); refreshToday(); hit=true }
+    } else if(unCycleDay(b.dataset.id,b.dataset.d)){ save(); refreshWeek(); hit=true }
+    if(hit&&navigator.vibrate)navigator.vibrate(12);
     b.classList.add('lp'); setTimeout(()=>b.classList.remove('lp'),200);   // 減ったことを一瞬示す
     lpCell=null; clearTimeout(lpT);
   },420);
 });
 ['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>document.addEventListener(ev,lpEnd,true));
 // 長押し中に出るコンテキストメニュー／選択メニューを止める
-document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-w="cell"]'))e.preventDefault() });
+document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-w="cell"],[data-act="mult"]'))e.preventDefault() });
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 
