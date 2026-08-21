@@ -238,7 +238,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='f5ad99f3';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='20783309';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -704,19 +704,20 @@ function weekLeftCard(){
   const ks=MUSCLES.filter(k=>(tg[k]||0)>=.05||(got[k]||0)>=.05);
   if(!ks.length) return '';
   const left=ks.reduce((t,k)=>t+Math.max(0,(tg[k]||0)-(got[k]||0)),0);
-  return `<div class="sect">今週の部位別 予定と実績</div>
+  return `<div class="sect">今週の消化ぐあい</div>
   <div class="card">
     <div class="rowb" style="margin-bottom:11px"><span class="small dim">残り合計</span>
-      <span class="num" style="font-size:21px${left<.05?';color:var(--green)':''}">${left<.05?'すべて達成':r1(left)+'セット'}</span></div>
+      <span class="num" style="font-size:21px${left<.05?';color:var(--green)':''}">${left<.05?'すべて消化':r1(left)+'セット'}</span></div>
     ${ks.map(k=>{const b=tg[k]||0,a=got[k]||0,rest=b-a,pct=b>=.05?Math.min(100,a/b*100):(a>0?100:0);
-      const lab=b<.05?'<span class="dim">予定外</span>'
-        :rest<.05?'<span style="color:var(--green)">達成</span>'
+      const tgt=targetOf(k);
+      const lab=b<.05?'<span class="dim">メニュー外</span>'
+        :rest<.05?'<span style="color:var(--green)">消化ずみ</span>'
         :`<span style="color:var(--amber)">残り ${r1(rest)}</span>`;
-      return `<div style="margin-bottom:9px">
-        <div class="rowb xs"><span>${k}</span>
-          <span class="num">${r1(a)} <span class="dim">/ ${b>=.05?r1(b):'—'}</span>　${lab}</span></div>
+      return `<div style="margin-bottom:10px">
+        <div class="rowb xs"><span>${k}<span class="dim" style="margin-left:7px">目標 ${tgt||'—'}</span></span>
+          <span class="num">${r1(a)} <span class="dim">/ メニュー ${b>=.05?r1(b):'—'}</span>　${lab}</span></div>
         <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
-    <div class="xs dim" style="margin-top:4px">値は寄与率換算のセット数。予定は週メニュー全体、実績は今週(月〜日)の記録。</div>
+    <div class="xs dim" style="margin-top:4px">分母は<b>組んだ週メニューの量</b>（寄与率換算。§5.2）。左の「目標」はSTEP1で決めた値で、<b>メニューとは一致しないことがある</b> — 胸を主としない種目からも流入するため。ズレはSTEP2で調整する。</div>
   </div>`;
 }
 function vWeek(){
