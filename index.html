@@ -191,6 +191,10 @@ const GROUPS=['胸','肩','腕','背中','脚','腹'];
 const GCOL={'胸':'#E23B3B','肩':'#F0B429','腕':'#9B6BE8','背中':'#2F6FE4','腹':'#E8734A','脚':'#4AA8B5'};
 const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
   広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',ふくらはぎ:'脚'};
+// 6分類 → 含む部位（§6.1の並び順）。セクションの寄与率換算セット数・充足バーの割り振りに使う
+const GMEM={胸:['胸'],肩:['肩前','肩中','肩後'],腕:['二頭','三頭'],背中:['広背','僧帽上背','脊柱起立'],脚:['大腿四頭','ハム臀','ふくらはぎ'],腹:['腹']};
+// そのグループに乗る寄与率換算セット数の合計（他部位の種目からの流入も含む）
+const groupContrib=(g,m)=>GMEM[g].reduce((t,k)=>t+(m[k]||0),0);
 // 寄与率の型。%を自分で決めなくて済むように、標準種目の配分を選べるようにする（§6.2）
 const CPRESET=[
  ['胸','ベンチプレス系（フラット）',{胸:.60,肩前:.15,三頭:.25}],
@@ -256,7 +260,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='0ec0e9cf';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='2c3f9411';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -632,7 +636,7 @@ const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
 const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
   const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>'
     :rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`
-    :`<span style="color:var(--green)">超過 ${r1(-rest)}</span>`;
+    :`<span style="color:var(--green)">＋α ${r1(-rest)}</span>`;
   return `${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}`};
 
 function vStep1(){
@@ -652,22 +656,18 @@ function vStep1(){
 
 function vStep2(){
   const got=contribPlan(allPlan()), ids=planExIds();
-  const short=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);
-  return `<div class="card">
-    <div class="xs dim" style="margin-bottom:9px">目標に対する割当。残りが0に近づくよう種目を足す。</div>
-    ${MUSCLES.map(k=>{const tg=targetOf(k), pct=tg?Math.min(100,(got[k]||0)/tg*100):0;
-      return `<div style="margin-bottom:8px">
-        <div class="rowb xs"><span>${k}</span><span class="num" data-mv="${k}">${restHTML(k,got)}</span></div>
-        <div class="bar" style="margin-top:3px"><i data-mb="${k}" style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
-    <div class="xs dim" id="mShort" style="margin-top:4px">${short.length?'不足: '+short.join(' / '):''}</div>
-  </div>
-  <div class="sect">種目と週セット数</div>
-  <div class="xs dim" style="margin:-2px 0 10px">部位の見出しの「＋追加」から、その部位の種目だけを選んで足せます。</div>
+  return `<div class="xs dim" style="margin:0 0 12px">部位ごとの<b style="color:var(--text)">目標に対する充足</b>を、その部位の種目のすぐ上に出しています。バーの残りが0に近づくよう下の種目でセットを足してください。見出しのセット数は<b style="color:var(--text)">寄与率換算</b>（他部位の種目からの流入も含む合計）。</div>
   ${GROUPS.map(g=>{const list=ids.map(exOf).filter(x=>x&&groupOf(x)===g);
-    const n=list.reduce((t,x)=>t+exWeekSets(x.id),0);
+    const n=groupContrib(g,got);
     return `<div class="gsec" style="--g:${GCOL[g]}">${g}
-      <span><span class="num" data-gs="${g}" style="margin-right:9px">${n?n+'セット':''}</span>
+      <span><span class="num" data-gs="${g}" style="margin-right:9px">${n>=.05?r1(n)+'セット':''}</span>
         <button class="gadd" data-w="addex" data-ng="${g}">＋ 追加</button></span></div>
+    <div class="card" style="padding:11px 11px 5px">
+      ${GMEM[g].map(k=>{const tg=targetOf(k), pct=tg?Math.min(100,(got[k]||0)/tg*100):0;
+        return `<div style="margin-bottom:8px">
+          <div class="rowb xs"><span>${k}</span><span class="num" data-mv="${k}">${restHTML(k,got)}</span></div>
+          <div class="bar" style="margin-top:3px"><i data-mb="${k}" style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    </div>
     ${list.length?list.map(ex=>`<div class="card" style="padding:10px 11px">
       <div class="rowb">
         <div><div style="font-weight:600">${esc(ex.name)}${gymChip(ex)}</div>
@@ -677,7 +677,7 @@ function vStep2(){
           <span class="num" data-ev="${ex.id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(ex.id)}</span>
           <button class="stp" data-w="ep" data-id="${ex.id}">＋</button>
           <button class="xbtn" data-w="ex" data-id="${ex.id}">✕</button></div></div></div>`).join('')
-      :'<div class="xs dim" style="padding:2px 0 4px">まだありません</div>'}`}).join('')}`;
+      :'<div class="xs dim" style="padding:2px 0 8px">まだありません</div>'}`}).join('')}`;
 }
 
 function vStep3(){
@@ -718,24 +718,23 @@ function vStep3(){
 const planDays=()=>DAYKEYS.filter(d=>(S.program[d]||[]).reduce((t,p)=>t+p.sets,0)>0).length;
 // 今週あとどの部位が何セット残っているか
 function weekLeftCard(){
-  const tg=contribPlan(allPlan()), got=weekContrib(weekStart(today()));
-  const ks=MUSCLES.filter(k=>(tg[k]||0)>=.05||(got[k]||0)>=.05);
+  const got=weekContrib(weekStart(today()));
+  const ks=MUSCLES.filter(k=>targetOf(k)>=1||(got[k]||0)>=.05);
   if(!ks.length) return '';
-  const left=ks.reduce((t,k)=>t+Math.max(0,(tg[k]||0)-(got[k]||0)),0);
+  const left=ks.reduce((t,k)=>t+Math.max(0,targetOf(k)-(got[k]||0)),0);
   return `<div class="sect">今週の消化ぐあい</div>
   <div class="card">
     <div class="rowb" style="margin-bottom:11px"><span class="small dim">残り合計</span>
       <span class="num" style="font-size:21px${left<.05?';color:var(--green)':''}">${left<.05?'すべて消化':r1(left)+'セット'}</span></div>
-    ${ks.map(k=>{const b=tg[k]||0,a=got[k]||0,rest=b-a,pct=b>=.05?Math.min(100,a/b*100):(a>0?100:0);
-      const tgt=targetOf(k);
-      const lab=b<.05?'<span class="dim">メニュー外</span>'
+    ${ks.map(k=>{const b=targetOf(k),a=got[k]||0,rest=b-a,pct=b>=1?Math.min(100,a/b*100):(a>0?100:0);
+      const lab=b<1?'<span class="dim">目標外</span>'
         :rest<.05?'<span style="color:var(--green)">消化ずみ</span>'
         :`<span style="color:var(--amber)">残り ${r1(rest)}</span>`;
       return `<div style="margin-bottom:10px">
-        <div class="rowb xs"><span>${k}<span class="dim" style="margin-left:7px">目標 ${tgt||'—'}</span></span>
-          <span class="num">${r1(a)} <span class="dim">/ メニュー ${b>=.05?r1(b):'—'}</span>　${lab}</span></div>
+        <div class="rowb xs"><span>${k}</span>
+          <span class="num">${r1(a)} <span class="dim">/ 目標 ${b>=1?b:'—'}</span>　${lab}</span></div>
         <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
-    <div class="xs dim" style="margin-top:4px">分母は<b>組んだ週メニューの量</b>（寄与率換算。§5.2）。左の「目標」はSTEP1で決めた値で、<b>メニューとは一致しないことがある</b> — 胸を主としない種目からも流入するため。ズレはSTEP2で調整する。</div>
+    <div class="xs dim" style="margin-top:4px">分母は<b>STEP1で決めた目標</b>のセット数。実績はその週（月〜日。§5.7）の記録を寄与率換算（§5.2）したもの。目標を持たない部位に実績が乗ったら「目標外」と出す。</div>
   </div>`;
 }
 function vWeek(){
@@ -776,11 +775,9 @@ function refreshWeek(){
       const v=q(`[data-mv="${k}"]`); if(v)v.innerHTML=restHTML(k,got);
       const b=q(`[data-mb="${k}"]`); if(b)b.style.width=(tg?Math.min(100,(got[k]||0)/tg*100):0)+'%';
     });
-    const sh=g('mShort'); if(sh){const s=MUSCLES.filter(k=>targetOf(k)-(got[k]||0)>=0.5);sh.textContent=s.length?'不足: '+s.join(' / '):''}
     planExIds().forEach(id=>{const v=q(`[data-ev="${id}"]`); if(v)v.textContent=exWeekSets(id)});
     GROUPS.forEach(g=>{const el=q(`[data-gs="${g}"]`); if(!el)return;
-      const n=planExIds().map(exOf).filter(x=>x&&groupOf(x)===g).reduce((t,x)=>t+exWeekSets(x.id),0);
-      el.textContent=n?n+'セット':''});
+      const n=groupContrib(g,got); el.textContent=n>=.05?r1(n)+'セット':''});
   }
   if(wstep===3){
     DAYKEYS.forEach(d=>{
