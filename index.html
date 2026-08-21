@@ -191,6 +191,24 @@ const GROUPS=['胸','肩','腕','背中','脚','腹'];
 const GCOL={'胸':'#E23B3B','肩':'#F0B429','腕':'#9B6BE8','背中':'#2F6FE4','腹':'#E8734A','脚':'#4AA8B5'};
 const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
   広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',ふくらはぎ:'脚'};
+// 寄与率の型。%を自分で決めなくて済むように、標準種目の配分を選べるようにする（§6.2）
+const CPRESET=[
+ ['胸','ベンチプレス系（フラット）',{胸:.60,肩前:.15,三頭:.25}],
+ ['胸','インクラインプレス系',{胸:.55,肩前:.25,三頭:.20}],
+ ['胸','フライ系',{胸:.85,肩前:.15}],
+ ['胸','ディップス系',{胸:.45,肩前:.15,三頭:.40}],
+ ['肩','ショルダープレス系',{肩前:.50,三頭:.30,肩中:.10,胸:.10}],
+ ['肩','サイドレイズ系',{肩中:.90,肩前:.10}],
+ ['肩','リアレイズ系',{肩後:.80,僧帽上背:.20}],
+ ['肩','フェイスプル系',{肩後:.60,僧帽上背:.40}],
+ ['背中','縦に引く（懸垂・ラットプル）',{広背:.55,二頭:.25,僧帽上背:.12,肩後:.08}],
+ ['背中','横に引く（ロー）',{広背:.35,僧帽上背:.30,二頭:.20,肩後:.15}],
+ ['背中','片手で引く（ワンハンドロー）',{広背:.45,僧帽上背:.25,二頭:.20,肩後:.10}],
+ ['背中','デッドリフト系',{ハム臀:.40,脊柱起立:.25,僧帽上背:.25,大腿四頭:.10}],
+ ['脚','スクワット系',{大腿四頭:.55,ハム臀:.45}],
+ ['脚','レッグプレス系',{大腿四頭:.60,ハム臀:.40}],
+ ['脚','ルーマニアンデッドリフト系',{ハム臀:.65,脊柱起立:.25,僧帽上背:.10}],
+];
 const GFIX={'デッドリフト':'背中'};        // 寄与率からの推定が実感と合わないものだけ上書き
 const MCOL={'胸':'#E23B3B','肩前':'#F7C948','肩中':'#F0B429','肩後':'#B08210','広背':'#2F6FE4','僧帽上背':'#5B93EC','脊柱起立':'#1E4FB8',
   '二頭':'#9B6BE8','三頭':'#35B57E','大腿四頭':'#4AA8B5','ハム臀':'#7A8794','ふくらはぎ':'#5E6B78','腹':'#E8734A'};
@@ -238,7 +256,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='20783309';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='0ec0e9cf';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -926,9 +944,15 @@ function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
       ${mode==='dup'?'<div class="xs dim" style="margin-top:6px">ジム名を付けて区別してください。寄与率とレップ帯は複製元のままです。</div>':''}
 
       <div class="sect">寄与率（部位 / %）</div>
+      <select id="x_pre"><option value="">型から入れる（選ぶと下が埋まります）</option>${
+        GROUPS.map(g=>{const list=CPRESET.map((c,i)=>[c,i]).filter(([c])=>c[0]===g);
+          return list.length?`<optgroup label="${g}">${list.map(([c,i])=>`<option value="${i}">${c[1]}</option>`).join('')}</optgroup>`:''}).join('')
+      }</select>
+      <div style="height:10px"></div>
       <div id="x_c">${(cs.length?cs:[['',0]]).slice(0,4).map(([k,v])=>crow(k,v)).join('')}</div>
       <button class="btn sm gh" id="x_add">＋ 部位を追加</button>
-      <div class="xs dim" style="margin-top:8px">合計が100%になるよう自動で調整されます。1つだけなら100%になります。</div>
+      <div class="xs dim" style="margin-top:8px">型はあくまで目安です。入れたあとに自由に直せます。<br>
+        1部位だけなら%は空でかまいません（100%として扱います）。合計は100%になるよう自動で調整されます。</div>
       <div style="height:14px"></div><button class="btn pri wide" id="x_ok">保存する</button>
       ${isNew?'':`<div style="height:8px"></div><button class="btn wide" data-x="dup" data-i="${i}">この種目を複製</button>
       <div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>`}
@@ -939,14 +963,20 @@ function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
         else { b.parentElement.querySelector('.c_m').value=''; b.parentElement.querySelector('.c_v').value=''; }
       });
       wire();
+      $('#x_pre').onchange=ev=>{ const i=ev.target.value; if(i==='')return;
+        const c=CPRESET[+i][2];
+        $('#x_c').innerHTML=Object.entries(c).map(([k,v])=>crow(k,v)).join('');
+        wire(); ev.target.value=''; };
       $('#x_add').onclick=()=>{ const box=$('#x_c');
         if(box.children.length>=4){alert('部位は4つまでです。');return}
         box.insertAdjacentHTML('beforeend',crow('',0)); wire(); };
       $('#x_ok').onclick=()=>{
         const ms=[...sheet.querySelectorAll('.c_m')].map(s=>s.value),vs=[...sheet.querySelectorAll('.c_v')].map(s=>+s.value||0);
         const c={}; ms.forEach((m,j)=>{if(m&&vs[j]>0)c[m]=(c[m]||0)+vs[j]});
+        const picked=ms.filter(Boolean);
+        if(!Object.keys(c).length&&picked.length===1) c[picked[0]]=100;   // 1部位だけなら%は省略できる
         const t=Object.values(c).reduce((a,b)=>a+b,0);
-        if(!t){alert('部位を選んで、%を入れてください。');return}
+        if(!t){alert('部位を選んでください。2つ以上のときは%も入れてください。');return}
         for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
         for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
         if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
