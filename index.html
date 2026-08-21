@@ -261,7 +261,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='99ea3109';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='3d8d1299';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -526,7 +526,6 @@ function vToday(){
 
   return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
-  <button class="btn wide" data-act="pickex" style="margin-bottom:14px">＋ 種目を追加</button>
   <div class="card">
     <div class="rowb"><div><div class="xs dim">総ボリューム</div>
       <div class="num" id="sVol" style="font-size:28px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
@@ -534,6 +533,7 @@ function vToday(){
     <div id="sBar">${sumBar(cr,sets)}</div>
   </div>
   <div id="planCard">${planCard(d,ents)}</div>
+  <button class="btn wide" data-act="pickex" style="margin-bottom:14px">＋ 種目を追加</button>
   ${body}
   <div id="crCard">${crCard(cr,sets)}</div>`;
 }
@@ -1056,9 +1056,9 @@ function openPick(cb,group){
   const secs=byGroup(pool);
   const rows=x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}${gymChip(x)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`;
   openSheet(`<h3>${group?group+'の種目を選ぶ':'種目を選ぶ'}</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
+    <button class="btn wide" id="pk_new" style="margin-bottom:12px">＋ 新しい種目を作る</button>
     <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect" style="color:${GCOL[g]}">${g}</div>${list.map(rows).join('')}`).join(''))
       :`<div class="empty">${group?group+'の種目がまだありません。':'種目がありません。'}<br>設定タブの「${group||'各部位'}」から登録してください。</div>`}</div>
-    <div style="height:12px"></div><button class="btn wide" id="pk_new">＋ 新しい種目を作る</button>
     <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
     $('#pk_new').onclick=()=>{ afterNew=cb; openExEdit('new','',group||'') };
     $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
