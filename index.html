@@ -231,7 +231,7 @@ const EXDEF=[
  ['シーテッドロー',{広背:.35,僧帽上背:.30,二頭:.20,肩後:.15},'mc',10,15,2.5],
  ['ワンハンドダンベルロー',{広背:.45,僧帽上背:.25,二頭:.20,肩後:.10},'db',8,12,2],
  ['デッドリフト',{ハム臀:.40,脊柱起立:.25,僧帽上背:.25,大腿四頭:.10},'bar',4,8,5],
- ['オーバーヘッドプレス',{肩前:.50,三頭:.30,肩中:.10,胸:.10},'bar',6,10,2.5],
+ ['ミリタリープレス',{肩前:.50,三頭:.30,肩中:.10,胸:.10},'bar',6,10,2.5],
  ['サイドレイズ',{肩中:.90,肩前:.10},'db',12,20,1],
  ['リアレイズ',{肩後:.80,僧帽上背:.20},'db',12,20,1],
  ['フェイスプル',{肩後:.60,僧帽上背:.40},'mc',12,20,2.5],
@@ -255,13 +255,13 @@ const EXDEF=[
 const TPL={days:{
  1:['ベンチプレス:4','インクラインダンベルプレス:4','ケーブルフライ:4','ケーブルプレスダウン:3'],
  2:['懸垂:5','ラットプルダウン:3','ベントオーバーロー:4','バーベルカール:2'],
- 3:['オーバーヘッドプレス:3','サイドレイズ:5','リアレイズ:4','フェイスプル:3','アブローラー:3'],
+ 3:['ミリタリープレス:3','サイドレイズ:5','リアレイズ:4','フェイスプル:3','アブローラー:3'],
  4:['スクワット:4','レッグプレス:4','レッグエクステンション:3','ルーマニアンデッドリフト:3','カーフレイズ:3','サイドレイズ:3'],
  5:['インクラインベンチプレス:4','ディップス:3','ダンベルフライ:3','オーバーヘッドエクステンション:3','サイドレイズ:3'],
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='bac37884';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='0d4c1ce8';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -288,6 +288,19 @@ const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r1=n=>Math.round(n*10)/10;
 const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/30):0;
+/* 参考｜1RM換算。[表示名, 変換先, 対「変換先」係数(その種目の1RM ÷ 変換先の1RM), ダンベル(片手入力→左右合計×2)]。
+   水平プレス系→ベンチプレス、垂直プレス系→ミリタリープレス。変換先の推定1RM = その種目の1RM ÷ 係数。比率は個人差の大きい目安値。 */
+const CONV=[
+  ['ベンチプレス','ベンチプレス',1.00,false],
+  ['インクラインベンチプレス','ベンチプレス',0.82,false],
+  ['ダンベルベンチプレス','ベンチプレス',0.85,true],
+  ['インクラインダンベルプレス','ベンチプレス',0.75,true],
+  ['ディップス（体重＋加重）','ベンチプレス',0.95,false],
+  ['スミスベンチプレス','ベンチプレス',1.00,false],
+  ['ミリタリープレス','ミリタリープレス',1.00,false],
+  ['ダンベルショルダープレス','ミリタリープレス',0.88,true],
+  ['スミスショルダープレス','ミリタリープレス',1.00,false],
+];
 // 自重種目は重量を持たない。回数だけで「入力済み」と判定し、ボリュームと推定1RMは出さない
 const isBW=id=>{const e=exOf(id); return !!(e&&e.bw)};
 const cnt=s=>Math.max(1,+s.n||1);                       // 1行が何セット分か
@@ -355,7 +368,7 @@ function render(){
     H.textContent=(selDate===today()?'今日':`${dt.getMonth()+1}/${dt.getDate()}（${WD[dt.getDay()]}）`)+'の記録';
     H.style.color=selDate>today()?'var(--amber)':'';m.innerHTML=vToday();refreshPlan()}
   if(tab==='week'){H.textContent='週メニュー';m.innerHTML=vWeek()}
-  if(tab==='goal'){H.textContent='目標';m.innerHTML=vGoal()}
+  if(tab==='goal'){H.textContent='目標';m.innerHTML=vGoal();cvCalc()}
   if(tab==='set'){H.textContent='設定';m.innerHTML=vSet()}
   if(tab!==lastTab){window.scrollTo(0,0);lastTab=tab}else window.scrollTo(0,y);
 }
@@ -833,6 +846,13 @@ document.addEventListener('input',e=>{
   if(v!==e.target.value)e.target.value=v;
   S.plan.target[k]=Math.max(0,+v||0); save(); refreshWeek();
 });
+// 1RM換算（参考）。種目の選択・重量・回数が変わるたびに計算し直す
+document.addEventListener('input',e=>{
+  if(e.target.id!=='cv_w'&&e.target.id!=='cv_r')return;
+  const v=numFix(e.target.value,e.target.id==='cv_w'); if(v!==e.target.value)e.target.value=v;
+  cvCalc();
+});
+document.addEventListener('change',e=>{ if(e.target.id==='cv_e')cvCalc(); });
 // 設定タブの種目検索。名前・ジムで絞り、該当のない部位セクションは丸ごと隠す（再描画しないので入力欄のフォーカスを保つ）
 document.addEventListener('input',e=>{
   if(e.target.id!=='exq')return;
@@ -867,9 +887,42 @@ function vGoal(){
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="xs dim" style="margin-top:6px">推定1RM（Epley式）で判定${per!==null?`　今月の目安 ${r1(cur+per)}kg（残り${ml}か月）`:''}</div></div>`}).join('');
 
+  // 変換先ごとにグループ分けした種目セレクト（ベンチ系／ミリタリー系）
+  const cvGroups=[]; CONV.forEach((c,i)=>{ let g=cvGroups.find(x=>x.t===c[1]); if(!g){g={t:c[1],o:[]};cvGroups.push(g)} g.o.push(`<option value="${i}">${c[0]}</option>`) });
+  const cvOpts=cvGroups.map(g=>`<optgroup label="${g.t}に換算">${g.o.join('')}</optgroup>`).join('');
+
   return `<div class="sect">種目の目標</div>
   ${lifts||`<div class="empty">ベンチプレス130kgなど、挙上目標を登録できます。</div>`}
-  <button class="btn wide" data-g="new">＋ 種目の目標を追加</button>`;
+  <button class="btn wide" data-g="new">＋ 種目の目標を追加</button>
+  <div class="sect" style="margin-top:24px">参考 ｜ 1RM換算</div>
+  <div class="card">
+    <div class="xs dim" style="margin-bottom:10px">やった種目の重量×回数から、その系統の主種目の推定1RMを出します。<b style="color:var(--text)">水平プレス系→ベンチプレス</b>、<b style="color:var(--text)">垂直プレス系→ミリタリープレス</b>（Epley式＋種目間の目安比率）。<b>あくまで参考値</b>で個人差があります。</div>
+    <label class="f">やった種目</label>
+    <select id="cv_e">${cvOpts}</select>
+    <div style="height:10px"></div>
+    <div class="g2">
+      <div><label class="f" id="cv_wl">重量kg</label><input id="cv_w" inputmode="decimal" placeholder="40"></div>
+      <div><label class="f">回数</label><input id="cv_r" inputmode="numeric" placeholder="8"></div></div>
+    <div class="xs dim" id="cv_dbn" style="display:none;margin-top:6px">ダンベルは<b style="color:var(--text)">片手の重量</b>を入れてください（左右合計で換算します）。</div>
+    <div style="height:12px"></div>
+    <div id="cv_out"></div>
+  </div>`;
+}
+/* 1RM換算の計算。入力を作り直さず #cv_out だけ書き換える（フォーカスを保つ） */
+function cvCalc(){
+  const es=document.getElementById('cv_e'); if(!es)return;
+  const from=CONV[+es.value]||CONV[0];
+  const note=document.getElementById('cv_dbn'); if(note)note.style.display=from[3]?'':'none';
+  const wl=document.getElementById('cv_wl'); if(wl)wl.textContent=from[3]?'重量kg（片手）':'重量kg';
+  const w=+numFix((document.getElementById('cv_w')||{}).value||'',true)||0;
+  const r=+numFix((document.getElementById('cv_r')||{}).value||'',false)||0;
+  const out=document.getElementById('cv_out'); if(!out)return;
+  const load=from[3]?w*2:w, one=e1rm(load,r);
+  if(!one){ out.innerHTML='<span class="xs dim">重量と回数を入れると推定します。</span>'; return; }
+  const est=one/from[2];   // 変換先の推定1RM
+  out.innerHTML=`<div class="rowb" style="padding:6px 0;border-top:1px solid var(--line)">
+      <span>${from[1]} 推定1RM</span><span class="num" style="font-size:26px">${Math.round(est)}<span class="dim" style="font-size:12px"> kg</span></span></div>
+    <div class="xs dim" style="margin-top:7px">${esc(from[0])}の推定1RM ${r1(one)}kg（${from[3]?`片手${w}×2=合計${load}`:load}kg×${r}回・Epley式）→ ${from[1]}へ換算。比率は目安です。</div>`;
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-g]'); if(!b)return;
@@ -1123,6 +1176,7 @@ function migrate4(){
   if(S.plan&&S.plan.target) MUSCLES.forEach(k=>S.plan.target[k]=Math.max(0,Math.round(+S.plan.target[k]||0)));  // 0.5刻みを廃止
   (S.gyms||[]).forEach(g=>S.ex.forEach(e=>{            // 種目名の末尾に付けたジム名はタグへ移す
     if(!e.gym&&e.name.endsWith(' '+g)){e.gym=g; e.name=e.name.slice(0,-(g.length+1)).trim()} }));
+  S.ex.forEach(e=>{ if(e.name==='オーバーヘッドプレス') e.name='ミリタリープレス'; });   // 種目名の改称（1RM換算の変換先に合わせた）
   const RENAME={'脊柱起立筋':'脊柱起立'};                                // 部位名の改称（他の部位に合わせて語尾の「筋」を落とした）
   for(const o in RENAME){ const nw=RENAME[o];
     S.ex.forEach(e=>{ if(e.c&&e.c[o]!=null){e.c[nw]=(e.c[nw]||0)+e.c[o]; delete e.c[o]} });
