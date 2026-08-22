@@ -261,7 +261,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='3d8d1299';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='bac37884';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -383,7 +383,7 @@ function planCard(d,ents){
   const list=dayPlan(d), pt=list.reduce((t,p)=>t+p.sets,0);
   if(!pt) return '';
   const tg=contribPlan(list), got=contribLog(ents,'sets');
-  const done=ents.reduce((t,e)=>t+setCount(e),0), ok=done>=pt;
+  const done=ents.reduce((t,e)=>t+(isFin(e)?setCount(e):0),0), ok=done>=pt;   // 「完了」を押した種目だけを数える
   const rows=MUSCLES.filter(k=>(tg[k]||0)>=.05||(got[k]||0)>=.05).map(k=>
     `<div class="cr"><span class="dim">${k}</span>
       <div class="crb"><div class="f" data-pb="${k}" style="width:0%;background:${MCOL[k]}"></div></div>
@@ -394,7 +394,7 @@ function planCard(d,ents){
       <span class="num" id="pDone" style="font-size:21px${ok?';color:var(--green)':''}"></span></div>
     <div class="bar" style="margin-bottom:12px"><i id="pBar" style="width:0%"></i></div>
     ${rows}
-    <div class="xs dim" style="margin-top:9px">下は<b>実際にこなした量</b>。寄与率で割った換算セット数で、棒の長さは部位どうしの比較。</div>
+    <div class="xs dim" style="margin-top:9px">こなしたセットは<b style="color:var(--text)">「完了」にした種目</b>だけを数えます。下は記録した量の部位配分（寄与率換算・棒の長さは部位どうしの比較）。</div>
   </div>`;
 }
 /* 入力のたびに呼ぶ。数値と棒だけを書き換え、行は増減させない */
@@ -402,7 +402,7 @@ function refreshPlan(){
   const d=selDate, pt=dayPlanSets(d); if(!pt)return;
   const ents=((S.logs[d]||{}).entries)||[];
   const tg=contribPlan(dayPlan(d)), got=contribLog(ents,'sets');
-  const done=ents.reduce((t,e)=>t+setCount(e),0), ok=done>=pt;
+  const done=ents.reduce((t,e)=>t+(isFin(e)?setCount(e):0),0), ok=done>=pt;   // 「完了」を押した種目だけを数える
   const dn=document.getElementById('pDone');
   if(dn){ dn.innerHTML=`${done} <span class="dim" style="font-size:13px">/ 予定 ${pt}</span>`;
     dn.style.color=ok?'var(--green)':'' }
@@ -833,6 +833,17 @@ document.addEventListener('input',e=>{
   if(v!==e.target.value)e.target.value=v;
   S.plan.target[k]=Math.max(0,+v||0); save(); refreshWeek();
 });
+// 設定タブの種目検索。名前・ジムで絞り、該当のない部位セクションは丸ごと隠す（再描画しないので入力欄のフォーカスを保つ）
+document.addEventListener('input',e=>{
+  if(e.target.id!=='exq')return;
+  const q=e.target.value.trim().toLowerCase(); let shown=0;
+  document.querySelectorAll('#app .exsec').forEach(sec=>{
+    let any=false;
+    sec.querySelectorAll('.exrow').forEach(r=>{const m=!q||(r.dataset.q||'').toLowerCase().includes(q); r.style.display=m?'':'none'; if(m)any=true});
+    const vis=!q||any; sec.style.display=vis?'':'none'; if(vis)shown++;
+  });
+  const none=document.getElementById('exNone'); if(none)none.style.display=(q&&!shown)?'':'none';
+});
 document.addEventListener('change',e=>{
   const k=e.target.dataset.tk; if(k!==undefined)e.target.value=targetOf(k);   // 空欄で離れたら0を出す
 });
@@ -891,15 +902,17 @@ function addStdEx(){
 function vSet(){
   return `<div class="sect">種目と寄与率</div>
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
+    <input id="exq" placeholder="種目を検索（名前・ジム）" style="margin-bottom:10px">
+    <div id="exNone" class="xs dim" style="display:none;padding:8px 0">該当する種目がありません。</div>
     ${GROUPS.map(g=>{const list=S.ex.filter(x=>groupOf(x)===g);
-      return `<div class="gsec" style="margin-top:14px;--g:${GCOL[g]}">${g}
+      return `<div class="exsec"><div class="gsec" style="margin-top:14px;--g:${GCOL[g]}">${g}
         <span><span style="margin-right:9px">${list.length?list.length+'種目':''}</span>
           <button class="gadd" data-x="new" data-ng="${g}">＋ 追加</button></span></div>
-      ${list.length?list.map(x=>`<div class="rowb" style="padding:8px 0;border-bottom:1px solid var(--line)">
+      ${list.length?list.map(x=>`<div class="rowb exrow" data-q="${esc(x.name)}${x.gym?' '+esc(x.gym):''}" style="padding:8px 0;border-bottom:1px solid var(--line)">
         <div><div style="font-weight:600">${esc(x.name)}${gymChip(x)}</div>
         <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
       <button class="btn sm gh" data-x="edit" data-i="${S.ex.indexOf(x)}">編集</button></div>`).join('')
-        :'<div class="xs dim" style="padding:8px 0">まだありません</div>'}`}).join('')}
+        :'<div class="xs dim" style="padding:8px 0">まだありません</div>'}</div>`}).join('')}
     <div style="height:14px"></div><button class="btn wide gh" data-x="std">標準の30種目を入れる</button>
     <div class="xs dim" style="margin-top:8px">標準の30種目は寄与率が設定済みです。同じ名前の種目があるものは飛ばします。</div></div>
   <div class="sect">ジム</div>
