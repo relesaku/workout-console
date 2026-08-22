@@ -261,7 +261,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='0d4c1ce8';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='335419f0';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -288,19 +288,9 @@ const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r1=n=>Math.round(n*10)/10;
 const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/30):0;
-/* 参考｜1RM換算。[表示名, 変換先, 対「変換先」係数(その種目の1RM ÷ 変換先の1RM), ダンベル(片手入力→左右合計×2)]。
-   水平プレス系→ベンチプレス、垂直プレス系→ミリタリープレス。変換先の推定1RM = その種目の1RM ÷ 係数。比率は個人差の大きい目安値。 */
-const CONV=[
-  ['ベンチプレス','ベンチプレス',1.00,false],
-  ['インクラインベンチプレス','ベンチプレス',0.82,false],
-  ['ダンベルベンチプレス','ベンチプレス',0.85,true],
-  ['インクラインダンベルプレス','ベンチプレス',0.75,true],
-  ['ディップス（体重＋加重）','ベンチプレス',0.95,false],
-  ['スミスベンチプレス','ベンチプレス',1.00,false],
-  ['ミリタリープレス','ミリタリープレス',1.00,false],
-  ['ダンベルショルダープレス','ミリタリープレス',0.88,true],
-  ['スミスショルダープレス','ミリタリープレス',1.00,false],
-];
+/* 参考｜1RM計算。公式(Epley)だけを使う。種目間の変換は公式が無いので載せない。
+   推定1RM = 重量×(1+回数/30)、各レップの目安 = 1RM ÷ (1+回数/30)。 */
+const RMREPS=[3,5,8,10,12];   // 1RMは上に別表示。r=1はEpleyの逆算が1RMと一致しない（3.3%ズレる）ので表には出さない
 // 自重種目は重量を持たない。回数だけで「入力済み」と判定し、ボリュームと推定1RMは出さない
 const isBW=id=>{const e=exOf(id); return !!(e&&e.bw)};
 const cnt=s=>Math.max(1,+s.n||1);                       // 1行が何セット分か
@@ -846,13 +836,12 @@ document.addEventListener('input',e=>{
   if(v!==e.target.value)e.target.value=v;
   S.plan.target[k]=Math.max(0,+v||0); save(); refreshWeek();
 });
-// 1RM換算（参考）。種目の選択・重量・回数が変わるたびに計算し直す
+// 1RM計算（参考）。重量・回数が変わるたびに計算し直す
 document.addEventListener('input',e=>{
   if(e.target.id!=='cv_w'&&e.target.id!=='cv_r')return;
   const v=numFix(e.target.value,e.target.id==='cv_w'); if(v!==e.target.value)e.target.value=v;
   cvCalc();
 });
-document.addEventListener('change',e=>{ if(e.target.id==='cv_e')cvCalc(); });
 // 設定タブの種目検索。名前・ジムで絞り、該当のない部位セクションは丸ごと隠す（再描画しないので入力欄のフォーカスを保つ）
 document.addEventListener('input',e=>{
   if(e.target.id!=='exq')return;
@@ -887,42 +876,32 @@ function vGoal(){
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="xs dim" style="margin-top:6px">推定1RM（Epley式）で判定${per!==null?`　今月の目安 ${r1(cur+per)}kg（残り${ml}か月）`:''}</div></div>`}).join('');
 
-  // 変換先ごとにグループ分けした種目セレクト（ベンチ系／ミリタリー系）
-  const cvGroups=[]; CONV.forEach((c,i)=>{ let g=cvGroups.find(x=>x.t===c[1]); if(!g){g={t:c[1],o:[]};cvGroups.push(g)} g.o.push(`<option value="${i}">${c[0]}</option>`) });
-  const cvOpts=cvGroups.map(g=>`<optgroup label="${g.t}に換算">${g.o.join('')}</optgroup>`).join('');
-
   return `<div class="sect">種目の目標</div>
   ${lifts||`<div class="empty">ベンチプレス130kgなど、挙上目標を登録できます。</div>`}
   <button class="btn wide" data-g="new">＋ 種目の目標を追加</button>
-  <div class="sect" style="margin-top:24px">参考 ｜ 1RM換算</div>
+  <div class="sect" style="margin-top:24px">参考 ｜ 1RM計算</div>
   <div class="card">
-    <div class="xs dim" style="margin-bottom:10px">やった種目の重量×回数から、その系統の主種目の推定1RMを出します。<b style="color:var(--text)">水平プレス系→ベンチプレス</b>、<b style="color:var(--text)">垂直プレス系→ミリタリープレス</b>（Epley式＋種目間の目安比率）。<b>あくまで参考値</b>で個人差があります。</div>
-    <label class="f">やった種目</label>
-    <select id="cv_e">${cvOpts}</select>
-    <div style="height:10px"></div>
+    <div class="xs dim" style="margin-bottom:10px">やった<b style="color:var(--text)">重量×回数</b>から、推定1RMと各レップでの目安重量を出します（Epley式）。<b>低レップ（〜5,6回）ほど正確</b>で、高レップは誤差が増えます。</div>
     <div class="g2">
-      <div><label class="f" id="cv_wl">重量kg</label><input id="cv_w" inputmode="decimal" placeholder="40"></div>
-      <div><label class="f">回数</label><input id="cv_r" inputmode="numeric" placeholder="8"></div></div>
-    <div class="xs dim" id="cv_dbn" style="display:none;margin-top:6px">ダンベルは<b style="color:var(--text)">片手の重量</b>を入れてください（左右合計で換算します）。</div>
+      <div><label class="f">重量kg</label><input id="cv_w" inputmode="decimal" placeholder="100"></div>
+      <div><label class="f">回数</label><input id="cv_r" inputmode="numeric" placeholder="5"></div></div>
     <div style="height:12px"></div>
     <div id="cv_out"></div>
   </div>`;
 }
-/* 1RM換算の計算。入力を作り直さず #cv_out だけ書き換える（フォーカスを保つ） */
+/* 1RM計算。入力を作り直さず #cv_out だけ書き換える（フォーカスを保つ）。公式(Epley)のみ。 */
 function cvCalc(){
-  const es=document.getElementById('cv_e'); if(!es)return;
-  const from=CONV[+es.value]||CONV[0];
-  const note=document.getElementById('cv_dbn'); if(note)note.style.display=from[3]?'':'none';
-  const wl=document.getElementById('cv_wl'); if(wl)wl.textContent=from[3]?'重量kg（片手）':'重量kg';
-  const w=+numFix((document.getElementById('cv_w')||{}).value||'',true)||0;
+  const wEl=document.getElementById('cv_w'); if(!wEl)return;
+  const w=+numFix(wEl.value,true)||0;
   const r=+numFix((document.getElementById('cv_r')||{}).value||'',false)||0;
   const out=document.getElementById('cv_out'); if(!out)return;
-  const load=from[3]?w*2:w, one=e1rm(load,r);
+  const one=e1rm(w,r);
   if(!one){ out.innerHTML='<span class="xs dim">重量と回数を入れると推定します。</span>'; return; }
-  const est=one/from[2];   // 変換先の推定1RM
   out.innerHTML=`<div class="rowb" style="padding:6px 0;border-top:1px solid var(--line)">
-      <span>${from[1]} 推定1RM</span><span class="num" style="font-size:26px">${Math.round(est)}<span class="dim" style="font-size:12px"> kg</span></span></div>
-    <div class="xs dim" style="margin-top:7px">${esc(from[0])}の推定1RM ${r1(one)}kg（${from[3]?`片手${w}×2=合計${load}`:load}kg×${r}回・Epley式）→ ${from[1]}へ換算。比率は目安です。</div>`;
+      <span>推定1RM</span><span class="num" style="font-size:26px">${Math.round(one)}<span class="dim" style="font-size:12px"> kg</span></span></div>
+    <div class="xs dim" style="margin:9px 0 3px">各レップの目安重量</div>
+    ${RMREPS.map(n=>`<div class="rowb" style="padding:4px 0${n>RMREPS[0]?';border-top:1px solid var(--line)':''}"><span class="dim">${n}回</span><span class="num" style="font-size:18px">${Math.round(one/(1+n/30))}<span class="dim" style="font-size:11px"> kg</span></span></div>`).join('')}
+    <div class="xs dim" style="margin-top:7px">${w}kg×${r}回 → 推定1RM ${r1(one)}kg（Epley式）。</div>`;
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-g]'); if(!b)return;
