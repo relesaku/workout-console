@@ -185,15 +185,15 @@ const store={
 };
 
 /* ================= 種目マスタ（寄与率は合計1.0） ================= */
-const MUSCLES=['胸','肩前','肩中','肩後','広背','僧帽上背','脊柱起立','二頭','三頭','大腿四頭','ハム臀','ふくらはぎ','腹'];
+const MUSCLES=['胸','肩前','肩中','肩後','広背','僧帽上背','脊柱起立','二頭','三頭','大腿四頭','ハム臀','腹'];
 // メイン部位のタグ（6分類）。12部位からの既定値を持ち、種目ごとに変更できる
 const GROUPS=['胸','肩','腕','背中','脚','腹'];
 // 6分類の色。13部位の色(§6.1)から代表を1つずつ取る。新しい色は増やさない
 const GCOL={'胸':'#E23B3B','肩':'#F0B429','腕':'#9B6BE8','背中':'#2F6FE4','腹':'#E8734A','脚':'#4AA8B5'};
 const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
-  広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',ふくらはぎ:'脚'};
+  広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚'};
 // 6分類 → 含む部位（§6.1の並び順）。セクションの寄与率換算セット数・充足バーの割り振りに使う
-const GMEM={胸:['胸'],肩:['肩前','肩中','肩後'],腕:['二頭','三頭'],背中:['広背','僧帽上背','脊柱起立'],脚:['大腿四頭','ハム臀','ふくらはぎ'],腹:['腹']};
+const GMEM={胸:['胸'],肩:['肩前','肩中','肩後'],腕:['二頭','三頭'],背中:['広背','僧帽上背','脊柱起立'],脚:['大腿四頭','ハム臀'],腹:['腹']};
 // そのグループに乗る寄与率換算セット数の合計（他部位の種目からの流入も含む）
 const groupContrib=(g,m)=>GMEM[g].reduce((t,k)=>t+(m[k]||0),0);
 // 寄与率の型。%を自分で決めなくて済むように、標準種目の配分を選べるようにする（§6.2）
@@ -216,7 +216,7 @@ const CPRESET=[
 ];
 const GFIX={'デッドリフト':'背中'};        // 寄与率からの推定が実感と合わないものだけ上書き
 const MCOL={'胸':'#E23B3B','肩前':'#F7C948','肩中':'#F0B429','肩後':'#B08210','広背':'#2F6FE4','僧帽上背':'#5B93EC','脊柱起立':'#1E4FB8',
-  '二頭':'#9B6BE8','三頭':'#35B57E','大腿四頭':'#4AA8B5','ハム臀':'#7A8794','ふくらはぎ':'#5E6B78','腹':'#E8734A'};
+  '二頭':'#9B6BE8','三頭':'#35B57E','大腿四頭':'#4AA8B5','ハム臀':'#7A8794','腹':'#E8734A'};
 // [名前, 寄与率(合計1.0), 器具, レップ下限, 上限, 増分kg]
 const EXDEF=[
  ['ベンチプレス',{胸:.60,肩前:.15,三頭:.25},'bar',6,10,2.5],
@@ -246,7 +246,6 @@ const EXDEF=[
  ['レッグエクステンション',{大腿四頭:1},'mc',12,18,2.5],
  ['ルーマニアンデッドリフト',{ハム臀:.65,脊柱起立:.25,僧帽上背:.10},'bar',8,12,2.5],
  ['レッグカール',{ハム臀:1},'mc',12,18,2.5],
- ['カーフレイズ',{ふくらはぎ:1},'mc',12,20,2.5],
  ['アブローラー',{腹:1},'bw',10,15,0],
  ['ハンギングレッグレイズ',{腹:1},'bw',10,20,0]
 ].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2],bw:a[2]==='bw'}));   // a[3]〜a[5]（レップ帯・増分kg）は使わない
@@ -256,12 +255,12 @@ const TPL={days:{
  1:['ベンチプレス:4','インクラインダンベルプレス:4','ケーブルフライ:4','ケーブルプレスダウン:3'],
  2:['懸垂:5','ラットプルダウン:3','ベントオーバーロー:4','バーベルカール:2'],
  3:['ミリタリープレス:3','サイドレイズ:5','リアレイズ:4','フェイスプル:3','アブローラー:3'],
- 4:['スクワット:4','レッグプレス:4','レッグエクステンション:3','ルーマニアンデッドリフト:3','カーフレイズ:3','サイドレイズ:3'],
+ 4:['スクワット:4','レッグプレス:4','レッグエクステンション:3','ルーマニアンデッドリフト:3','サイドレイズ:3'],
  5:['インクラインベンチプレス:4','ディップス:3','ダンベルフライ:3','オーバーヘッドエクステンション:3','サイドレイズ:3'],
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='335419f0';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='671b9ad0';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -502,7 +501,12 @@ function vToday(){
   const cr=contribLog(ents,basis);
 
   // 未完了を上、完了を下に。並べ替えは描画時だけ（入力中に動くと指の位置が変わる）
-  const order=ents.map((en,ei)=>({en,ei})).sort((a,b)=>(isFin(a.en)?1:0)-(isFin(b.en)?1:0));
+  // 未完了が上（元の順）、完了は下。完了群は新しく完了したものが上、最初に完了したものが下
+  const order=ents.map((en,ei)=>({en,ei})).sort((a,b)=>{
+    const fa=isFin(a.en)?1:0, fb=isFin(b.en)?1:0;
+    if(fa!==fb) return fa-fb;
+    return fa? (b.en.finAt||0)-(a.en.finAt||0) : 0;
+  });
   const body=!ents.length?`<div class="empty">この曜日のメニューは未設定です。<br>「週メニュー」で組むか、上から種目を足してください。</div>`:
   order.map(({en,ei})=>{
     const ex=exOf(en.exId); if(!ex) return '';
@@ -549,7 +553,7 @@ document.addEventListener('click',e=>{
   if(act==='mult'){ if(lpFired){lpFired=false;return}
     const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
     a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
-  if(act==='fin'){const en=log.entries[ei]; en.fin=!isFin(en); save(); render(); return}
+  if(act==='fin'){const en=log.entries[ei]; if(isFin(en)){en.fin=false;delete en.finAt}else{en.fin=true;en.finAt=Date.now()} save(); render(); return}
   if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
   if(act==='rmset'){const s=log.entries[ei].sets,last=s[s.length-1];
     if(s.length<2)return;
@@ -1160,6 +1164,17 @@ function migrate4(){
   for(const o in RENAME){ const nw=RENAME[o];
     S.ex.forEach(e=>{ if(e.c&&e.c[o]!=null){e.c[nw]=(e.c[nw]||0)+e.c[o]; delete e.c[o]} });
     if(S.plan&&S.plan.target&&S.plan.target[o]!=null){S.plan.target[nw]=(S.plan.target[nw]||0)+S.plan.target[o]; delete S.plan.target[o]} }
+  // ふくらはぎを部位から削除（単独では鍛えない）。キーを外し残りを正規化。空になった種目（カーフレイズ等）は参照ごと消す
+  S.ex.forEach(e=>{ if(e.c&&e.c['ふくらはぎ']!=null){ delete e.c['ふくらはぎ'];
+    const t=Object.values(e.c).reduce((a,b)=>a+b,0); if(t>0)for(const k in e.c)e.c[k]=Math.round(e.c[k]/t*100)/100; } });
+  if(S.plan&&S.plan.target) delete S.plan.target['ふくらはぎ'];
+  const calfGone=S.ex.filter(e=>!e.c||!Object.keys(e.c).length).map(e=>e.id);
+  if(calfGone.length){
+    S.ex=S.ex.filter(e=>!calfGone.includes(e.id));
+    for(const d in (S.program||{})) if(Array.isArray(S.program[d])) S.program[d]=S.program[d].filter(p=>!calfGone.includes(p.exId));
+    for(const d in (S.logs||{})){ const L=S.logs[d]; if(L&&L.entries)L.entries=L.entries.filter(en=>!calfGone.includes(en.exId)); if(L&&L.skip)L.skip=L.skip.filter(id=>!calfGone.includes(id)); }
+    S.lifts=(S.lifts||[]).filter(g=>!calfGone.includes(g.exId));
+  }
   S.ex.forEach(e=>{if(e.bw===undefined)e.bw=(e.kind==='bw');    // 器具の指定から自重フラグを引き継ぐ
     delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
   save();
