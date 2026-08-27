@@ -145,13 +145,7 @@ details.wk{background:var(--surface);border:1px solid var(--line);border-radius:
 details.wk>summary{list-style:none;cursor:pointer;padding:12px 13px;display:flex;align-items:center;gap:10px;justify-content:space-between}
 details.wk>summary::-webkit-details-marker{display:none}
 details.wk[open]>summary{border-bottom:1px solid var(--line)}
-.wkbody{padding:2px 13px 10px}
-.hday{padding:9px 0;border-bottom:1px solid var(--line)}
-.hday:last-child{border-bottom:none}
-.hdate{font-size:11px;letter-spacing:.08em;color:var(--dimmer);font-family:var(--disp);font-weight:600;margin-bottom:5px}
-.hrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-size:13.5px}
-.hname{font-weight:600;min-width:0}
-.hsets{color:var(--dim);font-variant-numeric:tabular-nums;text-align:right;flex:0 0 auto}
+.wkbody{padding:10px 13px 12px}
 /* 寄与率 */
 .cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
 .crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
@@ -272,7 +266,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='06d719e5';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='40496ef8';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -744,33 +738,27 @@ function weekTotals(w){ let sets=0,vol=0;
   logDates().filter(d=>weekStart(d)===w).forEach(d=>{ (S.logs[d].entries||[]).forEach(en=>{ sets+=setCount(en); vol+=volOf(en); }); });
   return {sets,vol}; }
 
-/* ================= 履歴（アーカイブ）— 週ごとに全記録を見る ================= */
+/* ================= 履歴（アーカイブ）— 週ごとの部位別セット合計 ================= */
 function vHist(){
   const weeks={};
   logDates().forEach(d=>{ const w=weekStart(d); (weeks[w]=weeks[w]||[]).push(d); });
   const wkeys=Object.keys(weeks).sort().reverse();   // 新しい週が上
   if(!wkeys.length) return `<div class="empty">まだ記録がありません。<br>「今日」タブで記録すると、ここに週ごとにたまっていきます。</div>`;
-  return `<div class="xs dim" style="margin-bottom:10px">新しい週が上。見出しをタップで開閉します。</div>`+
+  return `<div class="xs dim" style="margin-bottom:10px">新しい週が上。見出しをタップで開くと部位別の合計が出ます（寄与率換算セット・§5.2）。</div>`+
   wkeys.map((w,wi)=>{
-    const t=weekTotals(w), days=weeks[w].slice().sort();   // 週内は月→日（時系列）
-    const body=days.map(d=>{
-      const dt=parse(d);
-      const rows=(S.logs[d].entries||[]).map(en=>{ const ex=exOf(en.exId); if(!ex)return'';
-        const bw=!!ex.bw, sets=doneSets(en); if(!sets.length)return'';
-        const summary=sets.map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}`:''}`).join(' / ');
-        const fin=isFin(en)?'<span class="fchip" style="margin-left:6px">完了</span>':'';
-        return `<div class="hrow"><span class="hname">${esc(ex.name)}${gymChip(ex)}${fin}</span><span class="hsets">${summary}</span></div>`;
-      }).filter(Boolean).join('');
-      if(!rows) return '';
-      return `<div class="hday"><div class="hdate">${WD[dt.getDay()]} ${dt.getMonth()+1}/${dt.getDate()}</div>${rows}</div>`;
-    }).filter(Boolean).join('');
+    const t=weekTotals(w), days=weeks[w].length, c=weekContrib(w);
+    const mx=Math.max(1,...MUSCLES.map(k=>c[k]||0));
+    const rows=MUSCLES.map(k=>({k,v:c[k]||0})).filter(x=>x.v>=0.05).sort((a,b)=>b.v-a.v).map(x=>
+      `<div class="cr"><span class="dim">${x.k}</span>
+        <div class="crb"><div class="f" style="width:${x.v/mx*100}%;background:${MCOL[x.k]}"></div></div>
+        <span class="v">${r1(x.v)}</span></div>`).join('');
     return `<details class="wk"${wi===0?' open':''}>
       <summary>
         <div style="min-width:0"><div class="num" style="font-size:17px">${md(w)} – ${md(shiftDate(w,6))}</div>
-          <div class="xs dim">${t.sets}セット · ${Math.round(t.vol).toLocaleString()}kg · ${days.length}日</div></div>
-        <div style="width:88px;flex:0 0 auto">${stackBar(weekContrib(w))}</div>
+          <div class="xs dim">${t.sets}セット · ${Math.round(t.vol).toLocaleString()}kg · ${days}日</div></div>
+        <div style="width:88px;flex:0 0 auto">${stackBar(c)}</div>
       </summary>
-      <div class="wkbody">${body||'<div class="xs dim" style="padding:8px 0">記録なし</div>'}</div>
+      <div class="wkbody">${rows||'<div class="xs dim" style="padding:8px 0">記録なし</div>'}</div>
     </details>`;
   }).join('');
 }
