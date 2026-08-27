@@ -140,6 +140,9 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
   border:1px solid var(--green-bd);color:var(--green);font-family:var(--body);font-size:11px;font-weight:500;vertical-align:middle}
 .bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
 .bar>i{display:block;height:100%;background:var(--hi)}
+/* 先週↔今週の比較バー（上=先週グレー・下=今週部位色） */
+.cmpbar{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+.cmpbar>i{display:block;height:5px;border-radius:3px;min-width:1px;background:var(--dimmer)}
 /* 寄与率 */
 .cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
 .crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
@@ -260,7 +263,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='671b9ad0';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='ab8d2c17';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -724,6 +727,37 @@ function vStep3(){
 
 /* この画面は予定だけを扱う。実績は「今日」タブの予定と進捗カードで見る */
 const planDays=()=>DAYKEYS.filter(d=>(S.program[d]||[]).reduce((t,p)=>t+p.sets,0)>0).length;
+
+/* 先週と今週の実績を比べる。数えるのは記録した全セット（月〜日。§5.7） */
+function weekTotals(w){ let sets=0,vol=0;
+  logDates().filter(d=>weekStart(d)===w).forEach(d=>{ (S.logs[d].entries||[]).forEach(en=>{ sets+=setCount(en); vol+=volOf(en); }); });
+  return {sets,vol}; }
+function weekCompareCard(){
+  const tw=weekStart(today()), lw=shiftDate(tw,-7);
+  const t=weekTotals(tw), l=weekTotals(lw), tc=weekContrib(tw), lc=weekContrib(lw);
+  if(!t.sets&&!l.sets) return '';                       // どちらの週も記録が無ければ出さない
+  const delta=(now,prev,unit='')=>{ const d=now-prev, s=d>0?'+':'';
+    const col=Math.abs(d)<0.05?'var(--dim)':d>0?'var(--green)':'var(--amber)';
+    return `<span style="color:${col}">${s}${r1(d)}${unit}</span>`; };
+  const ks=MUSCLES.filter(k=>(tc[k]||0)>=.05||(lc[k]||0)>=.05);
+  return `<div class="sect">先週との比較</div>
+  <div class="card">
+    <div class="rowb" style="align-items:flex-start">
+      <div><div class="xs dim">今週のセット</div>
+        <div class="num" style="font-size:28px">${t.sets}</div>
+        <div class="xs">先週 ${l.sets}　${delta(t.sets,l.sets)}</div></div>
+      <div style="text-align:right"><div class="xs dim">今週のボリューム</div>
+        <div class="num" style="font-size:28px">${Math.round(t.vol).toLocaleString()}<span class="dim" style="font-size:12px"> kg</span></div>
+        <div class="xs">先週 ${Math.round(l.vol).toLocaleString()}kg　${delta(Math.round(t.vol),Math.round(l.vol),'kg')}</div></div>
+    </div>
+    ${ks.length?`<div class="xs dim" style="margin:13px 0 7px">部位別（寄与率換算セット・先週 → 今週）</div>
+    ${ks.map(k=>{const a=lc[k]||0,b=tc[k]||0,mx=Math.max(1,a,b);
+      return `<div style="margin-bottom:8px">
+        <div class="rowb xs"><span>${k}</span><span class="num">${r1(a)} → ${r1(b)}　${delta(b,a)}</span></div>
+        <div class="cmpbar"><i style="width:${a/mx*100}%"></i><i style="width:${b/mx*100}%;background:${MCOL[k]}"></i></div></div>`}).join('')}`:''}
+    <div class="xs dim" style="margin-top:8px">記録したセット全部を数えています（上=先週・下=今週）。</div>
+  </div>`;
+}
 // 今週あとどの部位が何セット残っているか
 function weekLeftCard(){
   const got=weekContrib(weekStart(today()));
@@ -757,6 +791,7 @@ function vWeek(){
     <div id="wBar">${sumBar(contribPlan(plan),totalSets)}</div>
   </div>
   ${weekLeftCard()}
+  ${weekCompareCard()}
   <div class="seg" style="margin-bottom:12px">${steps.map(s=>
     `<button class="btn sm ${wstep===+s[0]?'pri':''}" data-w="step" data-s="${s[0]}">${s[0]}. ${s[1]}</button>`).join('')}</div>
   ${wstep===1?vStep1():wstep===2?vStep2():vStep3()}`;
