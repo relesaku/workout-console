@@ -266,7 +266,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='2575fa34';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='a1afbf9e';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -490,7 +490,8 @@ function vToday(){
   return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
   <div id="remCard">${weekLeftCard(weekStart(d),'今週の残り')}</div>
-  <button class="btn wide" data-act="pickex" style="margin-bottom:14px">＋ 種目を追加</button>
+  <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
+  <div class="xs dim" style="margin:0 0 12px;text-align:center">重量の入れ方：バーベル/マシンは<b style="color:var(--text)">総重量</b>、ダンベルは<b style="color:var(--text)">片手</b></div>
   ${body}
   <div class="card" style="margin-top:2px">
     <div class="rowb"><div><div class="xs dim">この日の総ボリューム</div>
