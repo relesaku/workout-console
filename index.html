@@ -266,7 +266,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='a1afbf9e';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='56470c95';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -287,6 +287,7 @@ const WD=['日','月','火','水','木','金','土'];
 const exOf=id=>S.ex.find(e=>e.id===id);
 const cList=c=>Object.entries(c||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);   // 0%の部位は出さない
 const gymChip=ex=>ex&&ex.gym?`<span class="gtag">${esc(ex.gym)}</span>`:'';
+const wcChip=ex=>ex&&ex.wc==='side'?'<span class="gtag">片側</span>':'';   // 重量の数え方（既定=総重量。片側の種目だけタグを出す）
 const groupOf=ex=>!ex?'胸':(GROUPS.includes(ex.g)?ex.g:(GFIX[ex.name]||G_OF[(cList(ex.c)[0]||[''])[0]]||'胸'));
 // 種目の配列をタグごとに分ける。空のタグは出さない
 const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>a[1].length);
@@ -469,7 +470,7 @@ function vToday(){
     const ex=exOf(en.exId); if(!ex) return '';
     const prev=lastEntry(en.exId,d), bw=!!ex.bw, fin=isFin(en);
     return `<div class="ex${fin?' fin':''}">
-      <div class="top rowb"><div><div class="name">${esc(ex.name)}${gymChip(ex)}${fin?'<span class="fchip">完了</span>':''}</div>
+      <div class="top rowb"><div><div class="name">${esc(ex.name)}${gymChip(ex)}${wcChip(ex)}${fin?'<span class="fchip">完了</span>':''}</div>
         <div class="meta">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
       ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
@@ -491,7 +492,7 @@ function vToday(){
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
   <div id="remCard">${weekLeftCard(weekStart(d),'今週の残り')}</div>
   <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
-  <div class="xs dim" style="margin:0 0 12px;text-align:center">重量の入れ方：バーベル/マシンは<b style="color:var(--text)">総重量</b>、ダンベルは<b style="color:var(--text)">片手</b></div>
+  <div class="xs dim" style="margin:0 0 12px;text-align:center">重量は<b style="color:var(--text)">総重量</b>で入力。<b style="color:var(--text)">「片側」タグ</b>の種目だけ片側（ダンベルは片手）で入れる</div>
   ${body}
   <div class="card" style="margin-top:2px">
     <div class="rowb"><div><div class="xs dim">この日の総ボリューム</div>
@@ -973,6 +974,10 @@ function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
       <label style="display:flex;align-items:center;gap:9px;margin-top:11px;font-size:14px">
         <input type="checkbox" id="x_bw" style="width:20px;height:20px;flex:0 0 auto"${ex.bw?' checked':''}>
         自重（重量を入力しない）</label>
+      <div style="height:10px"></div>
+      <label class="f">重量の数え方</label>
+      <select id="x_wc"><option value="total"${ex.wc!=='side'?' selected':''}>総重量（バー＋全プレート／マシンの表示）</option><option value="side"${ex.wc==='side'?' selected':''}>片側（ダンベルは片手）</option></select>
+      <div class="xs dim" style="margin-top:5px">種目ごとに固定して、片側/両側の取り違えを防ぎます。「片側」にすると記録画面にタグが出ます。</div>
       ${(S.gyms||[]).length?`<div style="height:10px"></div><label class="f">ジム</label>
         <select id="x_gym"><option value="">指定しない</option>${S.gyms.map(g=>
           `<option${(ex.gym||'')===g?' selected':''}>${esc(g)}</option>`).join('')}</select>`:''}
@@ -1018,6 +1023,7 @@ function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
         const gy=$('#x_gym'); const o={...ex,name:$('#x_n').value.trim()||'名称未設定',g:$('#x_g').value,
           gym:gy?gy.value:(ex.gym||''),bw:$('#x_bw').checked,c};
         delete o.inc; delete o.repMin; delete o.repMax;  // 増分kgとレップ帯は廃止
+        if($('#x_wc')&&$('#x_wc').value==='side')o.wc='side'; else delete o.wc;   // 重量の数え方（既定=総重量）
         if(isNew&&S.ex.some(e=>e.name===o.name&&(e.gym||'')===(o.gym||''))&&
            !confirm(`「${o.name}${o.gym?' / '+o.gym:''}」は既にあります。同じまま追加しますか？`))return;
         if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
