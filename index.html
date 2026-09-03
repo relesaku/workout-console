@@ -146,6 +146,12 @@ details.wk>summary{list-style:none;cursor:pointer;padding:12px 13px;display:flex
 details.wk>summary::-webkit-details-marker{display:none}
 details.wk[open]>summary{border-bottom:1px solid var(--line)}
 .wkbody{padding:10px 13px 12px}
+/* 種目別の記録の行 */
+.exh{display:flex;gap:10px;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.exh:first-child{border-top:none}
+.exh .d{color:var(--dimmer);font-family:var(--disp);font-weight:600;flex:0 0 auto;width:44px}
+.exh .s{flex:1;min-width:0;color:var(--dim)}
+.exh .e{flex:0 0 auto;color:var(--text);font-variant-numeric:tabular-nums}
 /* 寄与率 */
 .cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
 .crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
@@ -266,7 +272,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='56470c95';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='fc16cdcc';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -314,6 +320,10 @@ function weekContrib(w){ const m={}; MUSCLES.forEach(k=>m[k]=0);
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
   for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
 const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
+/* バックアップの安全網。書き出したら S.bk に時刻を記録し、しばらく経ったら催促する */
+const hasRecords=()=>logDates().length>0;
+const bkDays=()=>S.bk?Math.floor((Date.now()-S.bk)/86400000):Infinity;
+const bkOverdue=()=>hasRecords()&&bkDays()>=14;   // 14日以上、または一度も書き出していない
 function weekStart(d){const x=parse(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return ds(x)}  // 月曜始まり
 const monthKey=d=>d.slice(0,7);
 
@@ -490,6 +500,7 @@ function vToday(){
 
   return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
+  ${bkOverdue()?`<div class="tip warn" style="margin-bottom:12px">バックアップが${S.bk?bkDays()+'日ありません':'まだありません'}。設定タブから書き出しを。</div>`:''}
   <div id="remCard">${weekLeftCard(weekStart(d),'今週の残り')}</div>
   <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
   <div class="xs dim" style="margin:0 0 12px;text-align:center">重量は<b style="color:var(--text)">総重量</b>で入力。<b style="color:var(--text)">「片側」タグ</b>の種目だけ片側（ダンベルは片手）で入れる</div>
@@ -688,13 +699,68 @@ function weekTotals(w){ let sets=0,vol=0;
   logDates().filter(d=>weekStart(d)===w).forEach(d=>{ (S.logs[d].entries||[]).forEach(en=>{ sets+=setCount(en); vol+=volOf(en); }); });
   return {sets,vol}; }
 
-/* ================= 履歴（アーカイブ）— 週ごとの部位別セット合計 ================= */
+/* ================= 履歴（アーカイブ） ================= */
+let histEx='';   // 種目別の記録で選んでいる種目
+/* ① 週ごとの部位積み上げバー。高さ＝その週の寄与率換算セット合計、色＝部位。空の週も0で描く（抜けが見える） */
+function trendChart(){
+  const rec=[...new Set(logDates().map(weekStart))].sort();
+  if(rec.length<2) return '';
+  let weeks=[],cur=rec[0]; const end=weekStart(today());
+  while(cur<=end){ weeks.push(cur); cur=shiftDate(cur,7); }
+  weeks=weeks.slice(-12);
+  const data=weeks.map(w=>weekContrib(w));
+  const totals=data.map(c=>MUSCLES.reduce((t,k)=>t+(c[k]||0),0));
+  const mx=Math.max(1,...totals), W=320,H=150,pad=8,chartH=H-22, step=(W-pad*2)/weeks.length, barW=Math.min(24,step*0.72);
+  const bars=data.map((c,i)=>{ const x=pad+i*step+(step-barW)/2; let y=chartH;
+    const segs=MUSCLES.filter(k=>(c[k]||0)>0).map(k=>{ const h=(c[k]/mx)*chartH; y-=h;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${MCOL[k]}"/>`; }).join('');
+    const show=weeks.length<=8||i%2===0;
+    const lab=show?`<text x="${(x+barW/2).toFixed(1)}" y="${H-5}" text-anchor="middle" font-size="8" style="fill:#5A5A60">${md(weeks[i])}</text>`:'';
+    return segs+lab; }).join('');
+  return `<div class="sect">週ごとの推移（部位別セット）</div>
+  <div class="card">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+      <line x1="${pad}" y1="${chartH}" x2="${W-pad}" y2="${chartH}" stroke="#2B2B31"/>${bars}</svg>
+    <div class="xs dim" style="margin-top:6px">高さ＝その週の寄与率換算セット合計、色＝部位（§6.1）。直近${weeks.length}週。</div>
+  </div>`;
+}
+/* 種目の推定1RM（自重は総レップ）の推移を折れ線で */
+function lineChart(pts,unit){
+  const W=320,H=86,pad=8,n=pts.length, vs=pts.map(p=>p.v), mn=Math.min(...vs),mx=Math.max(...vs), span=mx-mn||1;
+  const x=i=>pad+(n===1?(W-pad*2)/2:i*(W-pad*2)/(n-1)), y=v=>H-16-((v-mn)/span)*(H-30);
+  const path=pts.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+  const dots=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.2" fill="#FAFAFA"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin:6px 0 2px">
+    <path d="${path}" fill="none" stroke="#FAFAFA" stroke-width="1.6"/>${dots}
+    <text x="${pad}" y="11" font-size="8.5" style="fill:#8A8A91">推定1RM等の推移（最新 ${r1(pts[n-1].v)}${unit}）</text></svg>`;
+}
+/* ④ 種目別の記録：これまでの記録一覧＋推定1RM推移 */
+function exHistDetail(exId){
+  const ex=exOf(exId); if(!ex) return '<div class="xs dim" style="margin-top:8px">この種目は見つかりません。</div>';
+  const bw=!!ex.bw, hist=allEntries(exId);
+  if(!hist.length) return '<div class="xs dim" style="margin-top:8px">まだ記録がありません。</div>';
+  const pts=hist.map(h=>({v:bw?repsOf(h.entry):bestE1(h.entry)})).filter(p=>p.v>0);
+  const line=pts.length>=2?lineChart(pts,bw?'回':'kg'):'';
+  const rows=hist.slice().reverse().map(h=>{
+    const s=doneSets(h.entry).map(x=>`${bw?x.r+'回':x.w+'×'+x.r}${cnt(x)>1?`×${cnt(x)}`:''}`).join(' / ');
+    const e=bw?repsOf(h.entry)+'回':(bestE1(h.entry)?`1RM ${r1(bestE1(h.entry))}`:'');
+    return `<div class="exh"><span class="d">${h.date.slice(5).replace('-','/')}</span><span class="s">${s}</span><span class="e">${e}</span></div>`;
+  }).join('');
+  return `${line}<div style="margin-top:8px">${rows}</div>`;
+}
 function vHist(){
   const weeks={};
   logDates().forEach(d=>{ const w=weekStart(d); (weeks[w]=weeks[w]||[]).push(d); });
   const wkeys=Object.keys(weeks).sort().reverse();   // 新しい週が上
   if(!wkeys.length) return `<div class="empty">まだ記録がありません。<br>「今日」タブで記録すると、ここに週ごとにたまっていきます。</div>`;
-  return `<div class="xs dim" style="margin-bottom:10px">新しい週が上。見出しをタップで開くと部位別の合計が出ます（寄与率換算セット・§5.2）。</div>`+
+  const exSel=`<div class="sect">種目別の記録</div>
+  <div class="card">
+    <select id="hx"><option value="">種目を選ぶ…</option>${S.ex.map(x=>`<option value="${x.id}"${histEx===x.id?' selected':''}>${esc(x.name)}${x.gym?' / '+esc(x.gym):''}</option>`).join('')}</select>
+    ${histEx?exHistDetail(histEx):'<div class="xs dim" style="margin-top:8px">種目を選ぶと、これまでの記録と推定1RMの推移が出ます。</div>'}
+  </div>`;
+  return trendChart()+exSel+
+  `<div class="sect">週ごとの部位別セット</div>
+  <div class="xs dim" style="margin:-2px 0 10px">見出しをタップで開くと部位別の合計（寄与率換算・§5.2）。</div>`+
   wkeys.map((w,wi)=>{
     const t=weekTotals(w), days=weeks[w].length, c=weekContrib(w);
     const mx=Math.max(1,...MUSCLES.map(k=>c[k]||0));
@@ -848,6 +914,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const k=e.target.dataset.tk; if(k!==undefined)e.target.value=targetOf(k);   // 空欄で離れたら0を出す
+  if(e.target.id==='hx'){ histEx=e.target.value; render(); }   // 種目別の記録の切替
 });
 
 /* ================= ① 目標 ================= */
@@ -925,7 +992,11 @@ function addStdEx(){
 
 /* ================= ④ 設定（種目と寄与率） ================= */
 function vSet(){
-  return `<div class="sect">種目と寄与率</div>
+  return `${hasRecords()?(()=>{const d=bkDays();
+    return `<div class="tip${bkOverdue()?' warn':' good'}" style="margin-bottom:14px">${bkOverdue()
+      ? `<b>バックアップを推奨。</b> ${S.bk?`最後の書き出しから${d}日たっています`:'まだ一度も書き出していません'}。下の「記録を書き出す」でファイル保存を。`
+      : `最終バックアップ：<b>${d===0?'今日':d+'日前'}</b>`}</div>`;})():''}
+  <div class="sect">種目と寄与率</div>
   <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
     <input id="exq" placeholder="種目を検索（名前・ジム）" style="margin-bottom:10px">
     <div id="exNone" class="xs dim" style="display:none;padding:8px 0">該当する種目がありません。</div>
@@ -1050,7 +1121,9 @@ document.addEventListener('click',e=>{
   const d=e.target.closest('[data-d]'); if(!d||!['ex','im','rs','dl'].includes(d.dataset.d))return;
   if(d.dataset.d==='dl'){ prune();
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
-    a.download=`plate_${today()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); return}
+    a.download=`plate_${today()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    S.bk=Date.now(); save();   // 最終バックアップ日を記録し、催促を消す
+    if(sheet)closeSheet(); render(); return}
   if(d.dataset.d==='ex')openSheet(`<h3>記録の書き出し</h3><div class="xs dim" style="margin:4px 0 10px">ファイルとして保存するのが確実です。コピーして保管しても構いません。</div>
     <button class="btn pri wide" data-d="dl">ファイルとして保存</button><div style="height:12px"></div>
     <textarea rows="10" id="dx">${esc(JSON.stringify(S))}</textarea><div style="height:10px"></div>
