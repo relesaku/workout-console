@@ -272,7 +272,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='7c41e378';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='0762b650';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
@@ -390,6 +390,8 @@ function entriesFor(d){ return ensureLog(d).entries; }
 const isFin=en=>en.fin===true;
 /* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
 const partialRow=(s,bw)=>bw ? false : ((!!(+s.w))!==(!!(+s.r)));   // 片方だけ入力された行
+const entryLost=en=>(en.sets||[]).filter(s=>partialRow(s,isBW(en.exId))).length;   // 未集計（片方だけ）の行数
+const dayLost=ents=>(ents||[]).reduce((t,e)=>t+entryLost(e),0);
 /* 全角数字・単位の打ち間違いをその場で直す */
 function numFix(v,dec){
   v=String(v).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[。、]/g,'.');
@@ -434,6 +436,7 @@ function refreshToday(){
   if(g('sVol'))g('sVol').innerHTML=`${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span>`;
   if(g('sSets'))g('sSets').textContent=sets;
   if(g('sBar'))g('sBar').innerHTML=sumBar(cr,sets);
+  if(g('sLost')){const l=dayLost(ents);g('sLost').innerHTML=l?`<div class="xs" style="color:var(--amber);margin-top:9px">⚠ 未集計 ${l}行（重量か回数が空。この数に入っていません）</div>`:''}
   if(g('remCard'))g('remCard').innerHTML=weekLeftCard(weekStart(selDate),'今週の残り');   // 週の残り予算を記録に合わせて更新
   if(g('crCard'))g('crCard').innerHTML=crCard(cr,sets);
   ents.forEach((en,ei)=>{const ex=exOf(en.exId); if(!ex)return;
@@ -510,6 +513,7 @@ function vToday(){
       <div class="num" id="sVol" style="font-size:28px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
       <div style="text-align:right"><div class="xs dim">セット</div><div class="num" id="sSets" style="font-size:28px">${sets}</div></div></div>
     <div id="sBar">${sumBar(cr,sets)}</div>
+    <div id="sLost">${(()=>{const l=dayLost(ents);return l?`<div class="xs" style="color:var(--amber);margin-top:9px">⚠ 未集計 ${l}行（重量か回数が空。この数に入っていません）</div>`:''})()}</div>
   </div>
   <div id="crCard">${crCard(cr,sets)}</div>`;
 }
@@ -522,7 +526,13 @@ document.addEventListener('click',e=>{
   if(act==='mult'){ if(lpFired){lpFired=false;return}
     const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
     a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
-  if(act==='fin'){const en=log.entries[ei]; if(isFin(en)){en.fin=false;delete en.finAt}else{en.fin=true;en.finAt=Date.now()} save(); render(); return}
+  if(act==='fin'){const en=log.entries[ei];
+    if(isFin(en)){en.fin=false;delete en.finAt}
+    else{ const lost=entryLost(en), counted=setCount(en);   // 完了する前に取りこぼしを警告する
+      if(counted===0){ if(!confirm('この種目はまだ数に入る記録がありません（重量か回数が空のまま）。それでも完了しますか？'))return; }
+      else if(lost){ if(!confirm(`重量か回数が空の行が${lost}行あります。その行は数に入りません。それでも完了しますか？`))return; }
+      en.fin=true;en.finAt=Date.now(); }
+    save(); render(); return}
   if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
   if(act==='rmset'){const s=log.entries[ei].sets,last=s[s.length-1];
     if(s.length<2)return;

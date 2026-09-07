@@ -1,4 +1,4 @@
-const V='wc-cd4e6fc5', FONTS='wc-fonts';
+const V='wc-8cb48e1d', FONTS='wc-fonts';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
