@@ -272,10 +272,10 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='0762b650';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='af755c98';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
-let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1;
+let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
 const fresh=()=>({v:4,
   gyms:[],                                                   // ジム名は利用者が自分で登録する（既定は空）
   ex:[],                                                     // 種目は空から始める（標準30種目は設定タブから入れられる）
@@ -368,6 +368,7 @@ const NAVS=[['today','今日','M4 7h16M4 12h16M4 17h10'],['week','週メニュ�
  ['hist','履歴','M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v4l3 2'],
  ['goal','目標','M12 3v18M3 12h18M12 7a5 5 0 100 10 5 5 0 000-10z'],['set','設定','M12 9a3 3 0 100 6 3 3 0 000-6zM4 12h2m12 0h2M12 4v2m0 12v2']];
 function render(){
+  promotePlan();   // 来週分の予約が、その週に入っていたら本採用する
   const y=window.scrollY;
   $('#nav').innerHTML=NAVS.map(n=>`<button data-tab="${n[0]}" class="${tab===n[0]?'on':''}"><svg viewBox="0 0 24 24"><path d="${n[2]}"/></svg><span class="t">${n[1]}</span></button>`).join('');
   const m=$('#app'),H=$('#hsub');
@@ -619,6 +620,13 @@ document.addEventListener('pointerdown',e=>{
 document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-w="cell"],[data-act="mult"]'))e.preventDefault() });
 const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
 const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
+/* STEP1の編集対象。'now'=今週の目標(plan.target)、'next'=来週から予約(plan.next)。
+   表示・編集だけ切り替え、残り/消化ぐあい/STEP2 は常に plan.target(=今週)を使う */
+const t1obj=()=>(t1mode==='next'&&S.plan.next)?S.plan.next:S.plan.target;
+const t1of=k=>+((t1obj()||{})[k])||0;
+/* 予約した来週の目標を、その週に入ったら本採用する */
+function promotePlan(){ if(S.plan&&S.plan.nextFrom&&weekStart(today())>=S.plan.nextFrom){
+  if(S.plan.next)S.plan.target=S.plan.next; delete S.plan.next; delete S.plan.nextFrom; if(t1mode==='next')t1mode='now'; save(); } }
 
 const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
   const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>'
@@ -627,14 +635,23 @@ const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
   return `${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}`};
 
 function vStep1(){
-  return `<div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
+  const next=t1mode==='next', from=md(shiftDate(weekStart(today()),7)), staged=!!(S.plan&&S.plan.next);
+  const seg=`<div class="seg" style="margin-bottom:10px">
+    <button class="btn sm ${!next?'pri':''}" data-w="t1mode" data-m="now">今週の目標</button>
+    <button class="btn sm ${next?'pri':''}" data-w="t1mode" data-m="next">来週から</button></div>`;
+  const banner=next
+    ? `<div class="tip good" style="margin-bottom:10px"><b>来週（${from}〜）から適用</b>。今週の残り・消化ぐあいは変わりません。編集した内容は次の月曜に自動で切り替わります。
+        <div style="margin-top:9px;display:flex;gap:8px"><button class="btn sm" data-w="t1apply">今すぐ適用</button><button class="btn sm gh" data-w="t1cancel">予約を取り消す</button></div></div>`
+    : (staged?`<div class="tip" style="margin-bottom:10px">来週（${md(S.plan.nextFrom)}〜）からの目標変更を<b>予約中</b>。〔来週から〕で確認・編集できます。</div>`:'');
+  return `${seg}${banner}
+  <div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
   <div class="card">
     ${MUSCLES.map((k,i)=>
       `<div class="rowb" style="padding:9px 0;${i?'border-top:1px solid var(--line)':''}">
         <div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:7px"></span>${k}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="stp" data-w="tm" data-k="${k}">−</button>
-          <input class="tnum" data-tk="${k}" inputmode="numeric" value="${targetOf(k)}">
+          <input class="tnum" data-tk="${k}" inputmode="numeric" value="${t1of(k)}">
           <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
   </div>
   <div style="text-align:right;margin-top:-4px">
@@ -816,7 +833,7 @@ function refreshWeek(){
   const wd=g('wDays'); if(wd)wd.innerHTML=`${planDays()}<span class="dim" style="font-size:13px"> 日</span>`;
   const wb=g('wBar'); if(wb)wb.innerHTML=sumBar(contribPlan(plan),tot);
   if(wstep===1){
-    MUSCLES.forEach(k=>{const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=targetOf(k)});
+    MUSCLES.forEach(k=>{const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=t1of(k)});
   }
   if(wstep===2){
     const got=contribPlan(allPlan());
@@ -855,11 +872,14 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-w]'); if(!b)return;
   const {w,k,id,d,s}=b.dataset;
   if(w==='step'){wstep=+s;render();return}
+  if(w==='t1mode'){ if(b.dataset.m==='next'&&!S.plan.next){S.plan.next=Object.assign({},S.plan.target);S.plan.nextFrom=shiftDate(weekStart(today()),7);save();} t1mode=b.dataset.m; render(); return }
+  if(w==='t1apply'){ if(S.plan.next)S.plan.target=Object.assign({},S.plan.next); delete S.plan.next; delete S.plan.nextFrom; t1mode='now'; save(); render(); return }
+  if(w==='t1cancel'){ delete S.plan.next; delete S.plan.nextFrom; t1mode='now'; save(); render(); return }
   const sig=planSig();
-  if(w==='tm'){S.plan.target[k]=Math.max(0,targetOf(k)-1)}
-  if(w==='tp'){S.plan.target[k]=targetOf(k)+1}
+  if(w==='tm'){t1obj()[k]=Math.max(0,t1of(k)-1)}
+  if(w==='tp'){t1obj()[k]=t1of(k)+1}
   if(w==='zero'){ if(!confirm(`${MUSCLES.length}部位すべての目標を0にします。よろしいですか？`))return;
-    MUSCLES.forEach(m=>S.plan.target[m]=0); }
+    const o=t1obj(); MUSCLES.forEach(m=>o[m]=0); }
   if(w==='ep'){addSet(id)}
   if(w==='em'){dropSet(id)}
   if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
@@ -880,7 +900,7 @@ document.addEventListener('input',e=>{
   const k=e.target.dataset.tk; if(k===undefined)return;
   const v=numFix(e.target.value,false);
   if(v!==e.target.value)e.target.value=v;
-  S.plan.target[k]=Math.max(0,+v||0); save(); refreshWeek();
+  t1obj()[k]=Math.max(0,+v||0); save(); refreshWeek();
 });
 // 1RM計算（参考）。重量・回数が変わるたびに計算し直す
 document.addEventListener('input',e=>{
@@ -900,7 +920,7 @@ document.addEventListener('input',e=>{
   const none=document.getElementById('exNone'); if(none)none.style.display=(q&&!shown)?'':'none';
 });
 document.addEventListener('change',e=>{
-  const k=e.target.dataset.tk; if(k!==undefined)e.target.value=targetOf(k);   // 空欄で離れたら0を出す
+  const k=e.target.dataset.tk; if(k!==undefined)e.target.value=t1of(k);   // 空欄で離れたら0を出す
   if(e.target.id==='hx'){ histEx=e.target.value; render(); }   // 種目別の記録の切替
 });
 
