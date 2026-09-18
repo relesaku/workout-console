@@ -131,6 +131,7 @@ label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercas
   border:1px solid var(--line);border-radius:9px;font-family:var(--disp);font-size:19px;font-weight:600}
 .exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
+.prev.best{margin-top:-4px}.prev.best b{color:var(--hot)}   /* 最高重量は自己ベストと同じ暖色で目立たせる */
 /* 完了した種目は沈める。完了中は数値・行操作をロックし、記録を変えられないようにする */
 .ex.fin{opacity:.5}
 .ex.fin input:disabled,.ex.fin button:disabled{cursor:default;-webkit-text-fill-color:var(--text);opacity:1}
@@ -272,7 +273,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='af755c98';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='b4de6376';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
@@ -320,6 +321,13 @@ function weekContrib(w){ const m={}; MUSCLES.forEach(k=>m[k]=0);
 function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
   for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
 const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
+/* 過去の最高記録。重量優先（同重量なら回数が多いほう）。自重は単セットの最大レップ。before より前だけを見る */
+function bestRec(exId,before,bw){ let best=null;
+  logDates().filter(d=>d<before).forEach(d=>{ const e=(S.logs[d].entries||[]).find(x=>x.exId===exId); if(!e)return;
+    doneSets(e).forEach(s=>{ const w=+s.w||0, r=+s.r||0;
+      if(bw){ if(r>0&&(!best||r>best.r)) best={r,date:d}; }
+      else { if(w>0&&(!best||w>best.w||(w===best.w&&r>best.r))) best={w,r,date:d}; } }); });
+  return best; }
 /* バックアップの安全網。書き出したら S.bk に時刻を記録し、しばらく経ったら催促する */
 const hasRecords=()=>logDates().length>0;
 const bkDays=()=>S.bk?Math.floor((Date.now()-S.bk)/86400000):Infinity;
@@ -488,6 +496,7 @@ function vToday(){
         <div class="meta">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
         <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
       ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
+      ${(()=>{const bst=bestRec(en.exId,d,bw); return bst?`<div class="prev best">最高 ${bw?`<b>${bst.r}回</b>`:`<b>${bst.w}kg</b> × ${bst.r}回`}<span class="dim">　${bst.date.slice(5).replace('-','/')}</span></div>`:''})()}
       <div class="setrow head${bw?' bw':''}"><span></span>${bw?'':'<span>重量kg</span>'}<span>回数</span><span title="タップで＋1／長押しで−1">セット</span></div>
       ${(()=>{let no=0;return en.sets.map((s,si)=>{const n=cnt(s);const from=no+1;no+=n;
         return `<div class="setrow${bw?' bw':''} ${partialRow(s,bw)?'warn':''}" data-ei="${ei}" data-si="${si}">
