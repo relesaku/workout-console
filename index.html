@@ -277,7 +277,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='573bb42b';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='c25f4597';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
@@ -550,8 +550,14 @@ function openDayResult(d){
     `<div class="cr"><span class="dim">${x.k}</span><div class="crb"><div class="f" style="width:${x.v/mx*100}%;background:${MCOL[x.k]}"></div></div><span class="v">${r1(x.v)}</span></div>`).join('');
   const exRows=done.map(en=>{ const ex=exOf(en.exId); if(!ex)return''; const bw=!!ex.bw;
     const s=doneSets(en).map(x=>`${bw?x.r+'回':x.w+'×'+x.r}${cnt(x)>1?`×${cnt(x)}`:''}`).join(' / ');
-    const past=bestRec(en.exId,d,bw), tmax=Math.max(0,...doneSets(en).map(x=>bw?+x.r:+x.w));
-    const pr=tmax>0&&past&&tmax>(bw?past.r:past.w);   // 過去の最高を超えたときだけ
+    // 最高更新：まず重量、同じ重量なら回数で判定（bestRecと同じ順序）。自重は回数のみ
+    const past=bestRec(en.exId,d,bw);
+    let pr=false;
+    if(past){
+      if(bw){ const tr=Math.max(0,...doneSets(en).map(x=>+x.r||0)); pr=tr>past.r; }
+      else { let tb=null; doneSets(en).forEach(x=>{const w=+x.w||0,r=+x.r||0; if(w>0&&(!tb||w>tb.w||(w===tb.w&&r>tb.r)))tb={w,r};});
+        pr=!!tb&&(tb.w>past.w||(tb.w===past.w&&tb.r>past.r)); }
+    }
     return `<div class="exh"><span class="s" style="flex:1;font-weight:600;color:var(--text)">${esc(ex.name)}${pr?' <span class="chip pr">最高更新</span>':''}</span><span class="e dim">${s}</span></div>`;
   }).join('');
   const dt=parse(d);
