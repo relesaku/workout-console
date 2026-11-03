@@ -1,0 +1,1314 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Console">
+<meta name="application-name" content="Workout Console">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>Workout Console — 筋トレ管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== Iron =====
+   地の色は完全な無彩色（青みを入れない）。強調は白のみ。
+   色が付いている場所は「意味のある色」だけ = 部位配分・プレート・警告・自己ベスト。 */
+:root{
+  --bg:#0B0B0C; --surface:#141417; --surface2:#1D1D21; --line:#2B2B31;
+  --text:#FAFAFA; --dim:#8A8A91; --dimmer:#5A5A60;
+  --field:#050506;                                  /* 入力欄・バーの地 */
+  --hi:#FFFFFF; --hi-bg:#232327; --hi-bd:#43434B;   /* 強調（選択・進捗・完了） */
+  --hot:#FF4D1C;                                    /* 自己ベスト・今日。1点だけ使う */
+  --amber:#F0B429; --amber-bd:#4A3C14; --amber-bg:#1E1A12;   /* 警告のみ */
+  --green:#35B57E; --green-bd:#26443A; --green-bg:#12211C;   /* 目標に対する超過 */
+  --red:#E23B3B; --red-bd:#4A2A2E;
+  --disp:"Barlow Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --body:"Barlow Semi Condensed","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+}
+/* touch-action:manipulation = ダブルタップの拡大だけを無効化する。
+   スクロールとピンチでの拡大は残る。記録中の誤爆で画面が飛ぶのを防ぐため。 */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+/* overscroll-behavior:none = 端で引っ張ったときのバウンドを止める。
+   バウンド中は position:fixed の要素が一緒に動いて見えるため。 */
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.45;overscroll-behavior:none}
+body{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
+button{cursor:pointer;border:none;background:none}
+h3{margin:0;font-family:var(--disp);font-weight:600}
+header{position:sticky;top:0;z-index:30;background:#0F0F11;border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+header::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.06;
+  background:repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 5px),repeating-linear-gradient(-45deg,#fff 0 1px,transparent 1px 5px)}
+.hd{display:flex;align-items:baseline;gap:10px;position:relative;z-index:1}
+.hd b{font-family:var(--disp);font-size:19px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.hd span{font-size:12px;color:var(--dim);letter-spacing:.08em}
+/* どのタブでも本文の高さを画面いっぱいまで確保する。
+   目標タブだけ内容が短く、他タブと挙動が変わるのを避けるため（スクロールは発生させない）。 */
+main{padding:14px;max-width:640px;margin:0 auto;min-height:calc(100vh - 125px)}
+@supports(height:100dvh){main{min-height:calc(100dvh - 125px)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:12px}
+.rowb{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sect{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);margin:18px 0 8px;font-family:var(--disp);font-weight:600}
+.sect:first-child{margin-top:0}
+.dim{color:var(--dim)} .small{font-size:13px} .xs{font-size:11.5px;letter-spacing:.04em}
+.num{font-family:var(--disp);font-variant-numeric:tabular-nums;font-weight:600}
+.btn{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:14px;font-weight:500}
+.btn:active{background:#26262B}
+.btn.pri{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:600}
+.btn.gh{background:transparent}.btn.sm{padding:6px 10px;font-size:13px}
+.btn.wide{width:100%;text-align:center}.btn.danger{color:var(--red);border-color:var(--red-bd)}
+input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--hi);outline-offset:1px}
+label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin:0 0 4px;font-family:var(--disp);font-weight:600}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:3px 9px;font-size:12px;color:var(--dim)}
+.chip.up{color:var(--text);border-color:var(--hi-bd);background:var(--hi-bg)}
+.chip.dn{color:var(--dim);border-color:var(--line)}
+.chip.warn{color:var(--amber);border-color:var(--amber-bd);background:var(--amber-bg)}
+.chip.pr{color:#160500;background:var(--hot);border-color:var(--hot);font-weight:600}
+/* 月〜日の7日を横スクロールなしで並べる */
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 0;background:var(--surface);min-width:0}
+.wknav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.day .d{font-size:11px;color:var(--dim)}.day .n{font-family:var(--disp);font-size:20px;font-weight:600;line-height:1.1}
+.day.sel{border-color:var(--hi);background:var(--hi-bg)}
+.day.has::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--dim);margin:3px auto 0}
+.day.today .d{color:var(--hot)}
+.ex{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden}
+.ex .top{padding:11px 12px 9px;border-bottom:1px solid var(--line)}
+.ex .name{font-family:var(--disp);font-size:19px;font-weight:600}
+.ex .meta{font-size:12px;color:var(--dim)}
+.setrow{display:grid;grid-template-columns:30px 1fr 1fr 48px;gap:6px;align-items:center;padding:5px 10px}
+.setrow.bw{grid-template-columns:30px 1fr 48px}   /* 自重は重量欄を持たない */
+.setrow .idx{font-size:12px}
+.mult{border:1px solid var(--line);border-radius:8px;height:44px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--disp);font-weight:600;font-size:15px;color:var(--dimmer)}
+.mult.on{background:var(--hi-bg);border-color:var(--hi-bd);color:var(--text)}
+.mult{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.mult.lp{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.setrow.head span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);font-family:var(--disp);font-weight:600;text-align:center}
+.setrow .idx{font-family:var(--disp);font-weight:600;color:var(--dimmer);text-align:center}
+.setrow input{text-align:center;padding:11px 4px;font-family:var(--disp);font-size:18px;font-weight:600}
+.setrow.done input{border-color:var(--hi-bd)}
+/* 入力が片方だけ／✓だけ = 集計に入らない行 */
+.setrow.warn{background:var(--amber-bg);border-radius:8px}
+.setrow.warn input{color:var(--amber);border-color:var(--amber-bd)}
+.xbtn{flex:0 0 auto;width:40px;height:40px;border:1px solid var(--line);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;color:var(--dimmer);font-size:15px}
+/* 週メニューの増減ボタン。連打する場所なので44pxを確保する */
+.stp{flex:0 0 auto;width:44px;height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;color:var(--text)}
+.stp:active{background:#26262B}
+/* STEP3 の曜日セル。タップで＋1、長押しで−1。
+   長押し中に文字選択やiOSのコールアウトが出ると押し損ねるので、両方止める。 */
+.dcell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:48px;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--dimmer);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.dcell.lp{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.dcell i{font-style:normal;font-size:10.5px}
+.dcell b{font-family:var(--disp);font-size:17px;font-weight:600;line-height:1}
+.dcell.on{border-color:var(--hi);background:var(--hi-bg);color:var(--text)}
+.dcell:active{background:#2E2E34}
+/* メイン部位ごとのセクション見出し。--g に部位色(§6.1由来)が入る。
+   色は縦棒と見出し文字だけに使う。地は無彩色のまま（§8） */
+.gsec{display:flex;align-items:baseline;
+  font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.08em;
+  margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);
+  color:var(--g,var(--text))}
+.gsec::before{content:'';flex:0 0 auto;align-self:center;width:3px;height:15px;
+  border-radius:2px;background:var(--g,var(--line));margin-right:8px}
+.gsec>span{margin-left:auto;font-size:11.5px;color:var(--dimmer);letter-spacing:.04em;display:flex;align-items:center}
+.gadd{border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--text);
+  font-size:12px;font-weight:500;padding:7px 11px;letter-spacing:0}
+.gadd:active{background:#26262B}
+/* 種目に付くジムのタグ */
+.gtag{display:inline-block;margin-left:7px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;
+  font-family:var(--body);font-size:11px;font-weight:400;color:var(--dim);vertical-align:middle;letter-spacing:0}
+/* 目標セット数の直接入力。タップして打ち込める */
+.tnum{flex:0 0 auto;width:56px;padding:9px 4px;text-align:center;background:var(--field);
+  border:1px solid var(--line);border-radius:9px;font-family:var(--disp);font-size:19px;font-weight:600}
+.exfoot{padding:8px 12px 11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.prev{font-size:12.5px;color:var(--dim);padding:0 12px 8px}.prev b{color:var(--text);font-weight:600}
+.prev.best{margin-top:-4px}.prev.best b{color:var(--hot)}   /* 最高重量は自己ベストと同じ暖色で目立たせる */
+/* 完了した種目は沈める。完了中は数値・行操作をロックし、記録を変えられないようにする */
+.ex.fin{opacity:.5}
+.ex.fin input:disabled,.ex.fin button:disabled{cursor:default;-webkit-text-fill-color:var(--text);opacity:1}
+/* 完了ボタンは他の操作から離す（誤爆すると並びが動くため） */
+.finrow{display:flex;justify-content:flex-end;padding:10px 12px 12px;margin-top:4px;border-top:1px solid var(--line)}
+.fchip{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:var(--green-bg);
+  border:1px solid var(--green-bd);color:var(--green);font-family:var(--body);font-size:11px;font-weight:500;vertical-align:middle}
+.bar{height:8px;border-radius:4px;background:var(--field);overflow:hidden;border:1px solid var(--line)}
+.bar>i{display:block;height:100%;background:var(--hi)}
+/* 履歴（アーカイブ）— 週ごとの開閉カード */
+details.wk{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+details.wk>summary{list-style:none;cursor:pointer;padding:12px 13px;display:flex;align-items:center;gap:10px;justify-content:space-between}
+details.wk>summary::-webkit-details-marker{display:none}
+details.wk[open]>summary{border-bottom:1px solid var(--line)}
+.wkbody{padding:10px 13px 12px}
+/* 種目別の記録の行 */
+.exh{display:flex;gap:10px;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.exh:first-child{border-top:none}
+.exh .d{color:var(--dimmer);font-family:var(--disp);font-weight:600;flex:0 0 auto;width:44px}
+.exh .s{flex:1;min-width:0;color:var(--dim)}
+.exh .e{flex:0 0 auto;color:var(--text);font-variant-numeric:tabular-nums}
+/* 寄与率 */
+.cr{display:grid;grid-template-columns:72px 1fr 72px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
+.crb{position:relative;height:20px;border-radius:5px;background:var(--field);border:1px solid var(--line);overflow:hidden}
+.crb .f{position:absolute;left:0;top:0;bottom:0;background:var(--hi);opacity:.9}
+.cr .v{text-align:right;font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
+.stack{display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.stack i{display:block}
+/* backdrop-filter は使わない。iOSで position:fixed と組み合わせると、
+   スクロールしないページでナビの位置がずれることがある。地色が黒なので不透明で十分。 */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:#0A0A0B;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:9px 0 10px;color:var(--dimmer);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button .t{font-size:10.5px;letter-spacing:.08em;font-family:var(--disp);font-weight:600}
+nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:var(--text)}nav button.on svg{stroke:var(--hi)}
+.tip{border-left:2px solid var(--hi);background:var(--surface);padding:8px 11px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:8px}
+.tip.warn{border-color:var(--amber);background:var(--amber-bg)}
+.tip.good{border-color:var(--green);background:var(--green-bg)}
+.empty{text-align:center;color:var(--dim);padding:26px 14px;font-size:14px}
+.sheet{position:fixed;inset:0;z-index:60;background:#000A;display:flex;align-items:flex-end}
+.sheet .in{background:var(--surface);width:100%;max-height:86vh;overflow:auto;overscroll-behavior:contain;border-radius:16px 16px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+/* シート上部のつまみと閉じるボタン。下までスクロールしなくても閉じられる */
+.grab{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;align-items:center;
+  margin:-16px -14px 24px;padding:11px 12px 9px;background:var(--surface);border-bottom:1px solid var(--line)}
+.grab i{position:absolute;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
+.pick{display:block;width:100%;text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);font-size:15px}
+.pick .m{font-size:11.5px;color:var(--dim)}
+.seg{display:flex;gap:6px}.seg button{flex:1}
+</style>
+
+<header><div class="hd"><b>Workout Console</b><span id="hsub"></span></div></header>
+<main id="app"></main>
+<nav id="nav"></nav>
+
+<script>
+/* ================= storage ================= */
+const KEY='plate_v2';
+const store={
+  async get(){ try{ if(window.storage){const r=await window.storage.get(KEY);return r&&r.value?JSON.parse(r.value):null;} }catch(e){}
+    try{ const s=localStorage.getItem(KEY); return s?JSON.parse(s):null; }catch(e){ return null; } },
+  async set(v){ const s=JSON.stringify(v);
+    try{ if(window.storage){ await window.storage.set(KEY,s); return; } }catch(e){}
+    try{ localStorage.setItem(KEY,s); }catch(e){} }
+};
+
+/* ================= 種目マスタ（寄与率は合計1.0） ================= */
+const MUSCLES=['胸','肩前','肩中','肩後','広背','僧帽上背','脊柱起立','二頭','三頭','大腿四頭','ハム臀','内転','腹'];
+// メイン部位のタグ（6分類）。12部位からの既定値を持ち、種目ごとに変更できる
+const GROUPS=['胸','肩','腕','背中','脚','腹'];
+// 6分類の色。13部位の色(§6.1)から代表を1つずつ取る。新しい色は増やさない
+const GCOL={'胸':'#E23B3B','肩':'#F0B429','腕':'#9B6BE8','背中':'#2F6FE4','腹':'#E8734A','脚':'#4AA8B5'};
+const G_OF={胸:'胸',肩前:'肩',肩中:'肩',肩後:'肩',二頭:'腕',三頭:'腕',
+  広背:'背中',僧帽上背:'背中',脊柱起立:'背中',腹:'腹',大腿四頭:'脚',ハム臀:'脚',内転:'脚'};
+// 6分類 → 含む部位（§6.1の並び順）。セクションの寄与率換算セット数・充足バーの割り振りに使う
+const GMEM={胸:['胸'],肩:['肩前','肩中','肩後'],腕:['二頭','三頭'],背中:['広背','僧帽上背','脊柱起立'],脚:['大腿四頭','ハム臀','内転'],腹:['腹']};
+// そのグループに乗る寄与率換算セット数の合計（他部位の種目からの流入も含む）
+const groupContrib=(g,m)=>GMEM[g].reduce((t,k)=>t+(m[k]||0),0);
+// 寄与率の型。%を自分で決めなくて済むように、標準種目の配分を選べるようにする（§6.2）
+const CPRESET=[
+ ['胸','ベンチプレス系（フラット）',{胸:.60,肩前:.15,三頭:.25}],
+ ['胸','インクラインプレス系',{胸:.55,肩前:.25,三頭:.20}],
+ ['胸','フライ系',{胸:.85,肩前:.15}],
+ ['胸','ディップス系',{胸:.45,肩前:.15,三頭:.40}],
+ ['肩','ショルダープレス系',{肩前:.50,三頭:.30,肩中:.10,胸:.10}],
+ ['肩','サイドレイズ系',{肩中:.90,肩前:.10}],
+ ['肩','リアレイズ系',{肩後:.80,僧帽上背:.20}],
+ ['肩','フェイスプル系',{肩後:.60,僧帽上背:.40}],
+ ['背中','縦に引く（懸垂・ラットプル）',{広背:.55,二頭:.25,僧帽上背:.12,肩後:.08}],
+ ['背中','横に引く（ロー）',{広背:.35,僧帽上背:.30,二頭:.20,肩後:.15}],
+ ['背中','片手で引く（ワンハンドロー）',{広背:.45,僧帽上背:.25,二頭:.20,肩後:.10}],
+ ['背中','デッドリフト系',{ハム臀:.40,脊柱起立:.25,僧帽上背:.25,大腿四頭:.10}],
+ ['脚','スクワット系',{大腿四頭:.55,ハム臀:.45}],
+ ['脚','レッグプレス系',{大腿四頭:.60,ハム臀:.40}],
+ ['脚','ルーマニアンデッドリフト系',{ハム臀:.65,脊柱起立:.25,僧帽上背:.10}],
+ ['脚','ヒップアダクション系（内もも）',{内転:1}],
+];
+const GFIX={'デッドリフト':'背中'};        // 寄与率からの推定が実感と合わないものだけ上書き
+const MCOL={'胸':'#E23B3B','肩前':'#F7C948','肩中':'#F0B429','肩後':'#B08210','広背':'#2F6FE4','僧帽上背':'#5B93EC','脊柱起立':'#1E4FB8',
+  '二頭':'#9B6BE8','三頭':'#35B57E','大腿四頭':'#4AA8B5','ハム臀':'#7A8794','内転':'#3E8E9A','腹':'#E8734A'};
+// [名前, 寄与率(合計1.0), 器具, レップ下限, 上限, 増分kg]
+const EXDEF=[
+ ['ベンチプレス',{胸:.60,肩前:.15,三頭:.25},'bar',6,10,2.5],
+ ['インクラインベンチプレス',{胸:.55,肩前:.25,三頭:.20},'bar',8,12,2.5],
+ ['インクラインダンベルプレス',{胸:.55,肩前:.25,三頭:.20},'db',8,12,2],
+ ['ダンベルフライ',{胸:.85,肩前:.15},'db',10,15,2],
+ ['ケーブルフライ',{胸:.85,肩前:.15},'mc',12,18,2.5],
+ ['ディップス',{胸:.45,肩前:.15,三頭:.40},'bw',8,12,2.5],
+ ['懸垂',{広背:.55,二頭:.25,僧帽上背:.12,肩後:.08},'bw',6,12,2.5],
+ ['ラットプルダウン',{広背:.55,二頭:.25,僧帽上背:.12,肩後:.08},'mc',8,12,2.5],
+ ['ベントオーバーロー',{広背:.35,僧帽上背:.30,二頭:.20,肩後:.15},'bar',8,12,2.5],
+ ['シーテッドロー',{広背:.35,僧帽上背:.30,二頭:.20,肩後:.15},'mc',10,15,2.5],
+ ['ワンハンドダンベルロー',{広背:.45,僧帽上背:.25,二頭:.20,肩後:.10},'db',8,12,2],
+ ['デッドリフト',{ハム臀:.40,脊柱起立:.25,僧帽上背:.25,大腿四頭:.10},'bar',4,8,5],
+ ['ミリタリープレス',{肩前:.50,三頭:.30,肩中:.10,胸:.10},'bar',6,10,2.5],
+ ['サイドレイズ',{肩中:.90,肩前:.10},'db',12,20,1],
+ ['リアレイズ',{肩後:.80,僧帽上背:.20},'db',12,20,1],
+ ['フェイスプル',{肩後:.60,僧帽上背:.40},'mc',12,20,2.5],
+ ['バーベルカール',{二頭:1},'bar',8,12,2.5],
+ ['インクラインダンベルカール',{二頭:1},'db',10,15,1],
+ ['ハンマーカール',{二頭:1},'db',10,15,1],
+ ['ケーブルプレスダウン',{三頭:1},'mc',10,15,2.5],
+ ['スカルクラッシャー',{三頭:1},'bar',8,12,2.5],
+ ['オーバーヘッドエクステンション',{三頭:1},'mc',10,15,2.5],
+ ['スクワット',{大腿四頭:.55,ハム臀:.45},'bar',6,10,5],
+ ['レッグプレス',{大腿四頭:.60,ハム臀:.40},'mc',10,15,5],
+ ['レッグエクステンション',{大腿四頭:1},'mc',12,18,2.5],
+ ['ルーマニアンデッドリフト',{ハム臀:.65,脊柱起立:.25,僧帽上背:.10},'bar',8,12,2.5],
+ ['レッグカール',{ハム臀:1},'mc',12,18,2.5],
+ ['ヒップアダクション',{内転:1},'mc',12,20,2.5],
+ ['アブローラー',{腹:1},'bw',10,15,0],
+ ['ハンギングレッグレイズ',{腹:1},'bw',10,20,0]
+].map((a,i)=>({id:'e'+i,name:a[0],c:a[1],kind:a[2],bw:a[2]==='bw'}));   // a[3]〜a[5]（レップ帯・増分kg）は使わない
+
+
+const TPL={days:{
+ 1:['ベンチプレス:4','インクラインダンベルプレス:4','ケーブルフライ:4','ケーブルプレスダウン:3'],
+ 2:['懸垂:5','ラットプルダウン:3','ベントオーバーロー:4','バーベルカール:2'],
+ 3:['ミリタリープレス:3','サイドレイズ:5','リアレイズ:4','フェイスプル:3','アブローラー:3'],
+ 4:['スクワット:4','レッグプレス:4','レッグエクステンション:3','ルーマニアンデッドリフト:3','サイドレイズ:3'],
+ 5:['インクラインベンチプレス:4','ディップス:3','ダンベルフライ:3','オーバーヘッドエクステンション:3','サイドレイズ:3'],
+ 6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
+ 0:[]}};
+
+const BUILD='ecbe652b';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+
+/* ================= state ================= */
+let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
+const fresh=()=>({v:4,
+  gyms:[],                                                   // ジム名は利用者が自分で登録する（既定は空）
+  ex:[],                                                     // 種目は空から始める（標準30種目は設定タブから入れられる）
+  plan:{target:Object.fromEntries(MUSCLES.map(k=>[k,0]))},   // 週の目標セット。初期値は0（自分で決めるところから始める）
+  program:{0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]},         // "u" = 曜日に置いていない分
+  lifts:[], logs:{}});
+
+/* ================= utils ================= */
+const $=(s,r=document)=>r.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const ds=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parse=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
+const today=()=>ds(new Date());
+const WD=['日','月','火','水','木','金','土'];
+const exOf=id=>S.ex.find(e=>e.id===id);
+const cList=c=>Object.entries(c||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);   // 0%の部位は出さない
+const gymChip=ex=>ex&&ex.gym?`<span class="gtag">${esc(ex.gym)}</span>`:'';
+const wcChip=ex=>ex&&ex.wc==='side'?'<span class="gtag">片側</span>':'';   // 重量の数え方（既定=総重量。片側の種目だけタグを出す）
+const groupOf=ex=>!ex?'胸':(GROUPS.includes(ex.g)?ex.g:(GFIX[ex.name]||G_OF[(cList(ex.c)[0]||[''])[0]]||'胸'));
+// 種目の配列をタグごとに分ける。空のタグは出さない
+const byGroup=list=>GROUPS.map(g=>[g,list.filter(x=>groupOf(x)===g)]).filter(a=>a[1].length);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r1=n=>Math.round(n*10)/10;
+const e1rm=(w,r)=>(+w&&+r)?(+w)*(1+ (+r)/40):0;   // オコーナー式 重量×(1+回数/40)
+/* 参考｜1RM計算。公式(オコーナー式)だけを使う。種目間の変換は公式が無いので載せない。
+   推定1RM = 重量×(1+回数/40)、各レップの目安 = 1RM ÷ (1+回数/40)。 */
+const RMREPS=[3,5,8,10,12];   // 1RMは上に別表示。r=1は逆算が1RMと一致しない（約2.5%ズレる）ので表には出さない
+// 自重種目は重量を持たない。回数だけで「入力済み」と判定し、ボリュームと推定1RMは出さない
+const isBW=id=>{const e=exOf(id); return !!(e&&e.bw)};
+const cnt=s=>Math.max(1,+s.n||1);                       // 1行が何セット分か
+const bestE1=en=>(!en||isBW(en.exId))?0:en.sets.reduce((m,s)=>Math.max(m,e1rm(s.w,s.r)),0);
+const volOf=en=>(!en||isBW(en.exId))?0:en.sets.reduce((t,s)=>t+(+s.w||0)*(+s.r||0)*cnt(s),0);
+const repsOf=en=>en?en.sets.reduce((t,s)=>t+(+s.r||0)*cnt(s),0):0;   // 自重種目の総レップ
+const doneSets=en=>!en?[]:en.sets.filter(isBW(en.exId)?(s=>+s.r>0):(s=>+s.w&&+s.r));
+const setCount=en=>doneSets(en).reduce((t,s)=>t+cnt(s),0); // 実際のセット数
+const logDates=()=>Object.keys(S.logs).filter(d=>(S.logs[d].entries||[]).some(e=>doneSets(e).length)).sort();
+// 今週の実績を部位ごとに寄与率換算で合計する
+function weekContrib(w){ const m={}; MUSCLES.forEach(k=>m[k]=0);
+  logDates().filter(d=>weekStart(d)===w).forEach(d=>{ const c=contribLog((S.logs[d].entries||[]),'sets');
+    MUSCLES.forEach(k=>m[k]+=c[k]||0) });
+  return m; }
+function lastEntry(exId,before){ const L=logDates().filter(d=>d<before);
+  for(let i=L.length-1;i>=0;i--){ const e=(S.logs[L[i]].entries||[]).find(x=>x.exId===exId); if(e&&doneSets(e).length) return {date:L[i],entry:e}; } return null; }
+const allEntries=exId=>logDates().map(d=>{const e=(S.logs[d].entries||[]).find(x=>x.exId===exId);return e&&doneSets(e).length?{date:d,entry:e}:null}).filter(Boolean);
+/* 過去の最高記録。重量優先（同重量なら回数が多いほう）。自重は単セットの最大レップ。before より前だけを見る */
+function bestRec(exId,before,bw){ let best=null;
+  logDates().filter(d=>d<before).forEach(d=>{ const e=(S.logs[d].entries||[]).find(x=>x.exId===exId); if(!e)return;
+    doneSets(e).forEach(s=>{ const w=+s.w||0, r=+s.r||0;
+      if(bw){ if(r>0&&(!best||r>best.r)) best={r,date:d}; }
+      else { if(w>0&&(!best||w>best.w||(w===best.w&&r>best.r))) best={w,r,date:d}; } }); });
+  return best; }
+/* バックアップの安全網。書き出したら S.bk に時刻を記録し、しばらく経ったら催促する */
+const hasRecords=()=>logDates().length>0;
+const bkDays=()=>S.bk?Math.floor((Date.now()-S.bk)/86400000):Infinity;
+const bkOverdue=()=>hasRecords()&&bkDays()>=14;   // 14日以上、または一度も書き出していない
+function weekStart(d){const x=parse(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return ds(x)}  // 月曜始まり
+const monthKey=d=>d.slice(0,7);
+
+/* ================= 寄与率 ================= */
+// 実績: セット基準 = 各セットを1として寄与率で配分 / ボリューム基準 = kg×回で配分
+function contribLog(entries,mode){
+  const m={};MUSCLES.forEach(k=>m[k]=0);
+  (entries||[]).forEach(en=>{ const ex=exOf(en.exId); if(!ex) return;
+    const sets=doneSets(en); const unit = mode==='vol' ? sets.reduce((t,s)=>t+s.w*s.r*cnt(s),0) : sets.reduce((t,s)=>t+cnt(s),0);
+    for(const k in ex.c) m[k]=(m[k]||0)+unit*ex.c[k]; });
+  return m;
+}
+// 計画: セット基準のみ（重量が未確定のため）
+function contribPlan(list){
+  const m={};MUSCLES.forEach(k=>m[k]=0);
+  (list||[]).forEach(p=>{ const ex=exOf(p.exId); if(!ex) return; for(const k in ex.c) m[k]+=p.sets*ex.c[k]; });
+  return m;
+}
+const sum=m=>Object.values(m).reduce((a,b)=>a+b,0);
+function ratioRows(m,{unit=''}={}){
+  const t=sum(m); if(!t) return '<div class="xs dim">データなし</div>';
+  const mx=Math.max(30,...MUSCLES.map(k=>(m[k]||0)/t*100));
+  return MUSCLES.map(k=>({k,v:m[k]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).map(x=>{
+    const pc=x.v/t*100;
+    return `<div class="cr"><span class="dim">${x.k}</span>
+      <div class="crb"><div class="f" style="width:${pc/mx*100}%;background:${MCOL[x.k]}"></div></div>
+      <span class="v">${pc.toFixed(1)}%${unit?` <span class="dim xs">${r1(x.v)}${unit}</span>`:''}</span></div>`;
+  }).join('');
+}
+function stackBar(m){
+  const t=sum(m); if(!t) return '';
+  return `<div class="stack">${MUSCLES.filter(k=>m[k]>0).map(k=>`<i style="width:${m[k]/t*100}%;background:${MCOL[k]}"></i>`).join('')}</div>`;
+}
+
+/* 見ただけの日（自動生成された空メニュー）は保存しない */
+const touched=L=>((L.skip||[]).length>0)||(L.entries||[]).some(e=>(e.sets||[]).some(s=>(s.w!==''&&s.w!=null)||(s.r!==''&&s.r!=null)||s.done));
+const prune=()=>{for(const d in S.logs) if(d!==selDate&&!touched(S.logs[d])) delete S.logs[d]};
+let saveT=null; const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{prune();store.set(S)},200)};
+
+/* ================= render ================= */
+const NAVS=[['today','今日','M4 7h16M4 12h16M4 17h10'],['week','週メニュー','M4 5h16v14H4zM4 10h16M9 10v9'],
+ ['hist','履歴','M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v4l3 2'],
+ ['goal','目標','M12 3v18M3 12h18M12 7a5 5 0 100 10 5 5 0 000-10z'],['set','設定','M12 9a3 3 0 100 6 3 3 0 000-6zM4 12h2m12 0h2M12 4v2m0 12v2']];
+function render(){
+  promotePlan();   // 来週分の予約が、その週に入っていたら本採用する
+  const y=window.scrollY;
+  $('#nav').innerHTML=NAVS.map(n=>`<button data-tab="${n[0]}" class="${tab===n[0]?'on':''}"><svg viewBox="0 0 24 24"><path d="${n[2]}"/></svg><span class="t">${n[1]}</span></button>`).join('');
+  const m=$('#app'),H=$('#hsub');
+  if(tab==='today'){const dt=parse(selDate);
+    H.textContent=(selDate===today()?'今日':`${dt.getMonth()+1}/${dt.getDate()}（${WD[dt.getDay()]}）`)+'の記録';
+    H.style.color=selDate>today()?'var(--amber)':'';m.innerHTML=vToday()}
+  if(tab==='week'){H.textContent='週メニュー';m.innerHTML=vWeek()}
+  if(tab==='hist'){H.textContent='履歴';m.innerHTML=vHist()}
+  if(tab==='goal'){H.textContent='目標';m.innerHTML=vGoal();cvCalc()}
+  if(tab==='set'){H.textContent='設定';m.innerHTML=vSet()}
+  if(tab!==lastTab){window.scrollTo(0,0);lastTab=tab}else window.scrollTo(0,y);
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;render()}});
+
+/* ================= ③ 今日の記録 ================= */
+const ensureLog=d=>{if(!S.logs[d])S.logs[d]={entries:[]};return S.logs[d]};
+// 自由運用：週メニューの曜日配置から自動生成しない。実際にやった/足した種目だけを表示する（その日の気分で決めるため）
+function entriesFor(d){ return ensureLog(d).entries; }
+// 完了は手で押したときだけ。予定より多くやることがあるので自動判定はしない
+const isFin=en=>en.fin===true;
+/* 集計に入らない行（重量か回数の片方だけ / ✓だけ）を検出する */
+const partialRow=(s,bw)=>bw ? false : ((!!(+s.w))!==(!!(+s.r)));   // 片方だけ入力された行
+const entryLost=en=>(en.sets||[]).filter(s=>partialRow(s,isBW(en.exId))).length;   // 未集計（片方だけ）の行数
+const dayLost=ents=>(ents||[]).reduce((t,e)=>t+entryLost(e),0);
+/* 全角数字・単位の打ち間違いをその場で直す */
+function numFix(v,dec){
+  v=String(v).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[。、]/g,'.');
+  v=dec?v.replace(/[^0-9.]/g,''):v.replace(/[^0-9]/g,'');
+  if(dec){const i=v.indexOf('.'); if(i>=0)v=v.slice(0,i+1)+v.slice(i+1).replace(/\./g,'');}
+  return v;
+}
+/* 入力中に作り直さず、ここだけ差し替える部品 */
+function exFoot(en){
+  const bw=isBW(en.exId), prev=lastEntry(en.exId,selDate);
+  const cv=bw?repsOf(en):volOf(en), pv=prev?(bw?repsOf(prev.entry):volOf(prev.entry)):0;
+  const ce=bestE1(en), u=bw?'回':'kg';
+  const hist=allEntries(en.exId).filter(x=>x.date!==selDate);
+  const rec=hist.length?Math.max(...hist.map(x=>bw?repsOf(x.entry):bestE1(x.entry))):0;
+  const pt=en.sets.filter(x=>partialRow(x,bw)).length;
+  let c=`<span class="chip">${Math.round(cv)}${u}</span>${ce?`<span class="chip">推定1RM ${r1(ce)}kg</span>`:''}`;
+  if(prev&&cv>0) c+=`<span class="chip ${cv>=pv?'up':'dn'}">前回比 ${cv>=pv?'+':''}${Math.round(cv-pv)}${u}</span>`;
+  if(cv>rec+.01&&cv>0&&(bw||ce>0)) c+=`<span class="chip pr">自己ベスト</span>`;
+  if(pt) c+=`<span class="chip warn">未集計 ${pt}行</span>`;
+  return c;
+}
+function sumBar(cr,sets){
+  if(!sets)return'';
+  return `<div style="height:10px"></div>${stackBar(cr)}
+    <div class="xs dim" style="margin-top:6px">${MUSCLES.filter(k=>cr[k]>0).sort((a,b)=>cr[b]-cr[a]).slice(0,4).map(k=>`${k} ${(cr[k]/sum(cr)*100).toFixed(0)}%`).join('　')}</div>`;
+}
+function crCard(cr,sets){
+  if(!sets)return'';
+  return `<div class="sect" style="margin-top:30px">この日の部位別 寄与率</div>
+  <div class="card"><div class="seg" style="margin-bottom:10px">
+    <button class="btn sm ${basis==='sets'?'pri':''}" data-basis="sets">セット基準</button>
+    <button class="btn sm ${basis==='vol'?'pri':''}" data-basis="vol">ボリューム基準</button></div>
+    ${ratioRows(cr,{unit:basis==='sets'?'set':'kg'})}
+    <div class="xs dim" style="margin-top:8px">${basis==='sets'?'各セットを1として、種目ごとの寄与率で各部位に配分。肥大の刺激量を見るならこちら。':'kg×回のボリュームを寄与率で配分。扱う重量の差がそのまま出ます。'}</div></div>`;
+}
+/* 入力欄には触れず、集計表示だけを更新する（フォーカス・キーボードを保つ） */
+function refreshToday(){
+  if(tab!=='today')return;
+  const ents=((S.logs[selDate]||{}).entries)||[];
+  const vol=ents.reduce((t,e)=>t+volOf(e),0), sets=ents.reduce((t,e)=>t+setCount(e),0), cr=contribLog(ents,basis);
+  const g=id=>document.getElementById(id);
+  if(g('sVol'))g('sVol').innerHTML=`${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span>`;
+  if(g('sSets'))g('sSets').textContent=sets;
+  if(g('sBar'))g('sBar').innerHTML=sumBar(cr,sets);
+  if(g('sLost')){const l=dayLost(ents);g('sLost').innerHTML=l?`<div class="xs" style="color:var(--amber);margin-top:9px">⚠ 未集計 ${l}行（重量か回数が空。この数に入っていません）</div>`:''}
+  if(g('remCard'))g('remCard').innerHTML=weekLeftCard(weekStart(selDate),'今週の残り');   // 週の残り予算を記録に合わせて更新
+  if(g('crCard'))g('crCard').innerHTML=crCard(cr,sets);
+  ents.forEach((en,ei)=>{const ex=exOf(en.exId); if(!ex)return;
+    const f=document.querySelector(`[data-foot="${ei}"]`); if(f)f.innerHTML=exFoot(en);
+    const bw=!!ex.bw;
+    en.sets.forEach((s,si)=>{const row=document.querySelector(`.setrow[data-ei="${ei}"][data-si="${si}"]`);
+      if(row)row.classList.toggle('warn',partialRow(s,bw));});
+  });
+}
+function renumber(ei){let no=0;
+  document.querySelectorAll(`.setrow[data-ei="${ei}"]`).forEach(row=>{
+    const s=S.logs[selDate].entries[ei].sets[+row.dataset.si],n=cnt(s),from=no+1;no+=n;
+    const idx=row.querySelector('.idx'); if(idx)idx.textContent=n>1?`${from}-${no}`:from;});
+}
+const shiftDate=(d,n)=>{const x=parse(d);x.setDate(x.getDate()+n);return ds(x)};
+const md=d=>d.slice(5).replace('-','/');
+function vToday(){
+  const d=selDate,ents=entriesFor(d);
+  // 日付ストリップは「選んだ日を含む週」の月〜日。週送りで前後の週へ
+  const ws=weekStart(d), we=shiftDate(ws,6);
+  let strip='';
+  for(let i=0;i<7;i++){const k=shiftDate(ws,i), dt=parse(k);
+    const has=S.logs[k]&&(S.logs[k].entries||[]).some(e=>doneSets(e).length);
+    strip+=`<button class="day ${k===d?'sel':''} ${has?'has':''} ${k===today()?'today':''}" data-date="${k}"><div class="d">${WD[dt.getDay()]}</div><div class="n">${dt.getDate()}</div></button>`}
+  const thisWeek=ws===weekStart(today());
+  const nav=`<div class="wknav">
+    <button class="xbtn" data-date="${shiftDate(d,-7)}">‹</button>
+    <div class="xs dim">${md(ws)} – ${md(we)}${thisWeek?'　今週':''}</div>
+    <div style="display:flex;gap:6px">
+      ${thisWeek?'':`<button class="btn sm" data-date="${today()}">今週</button>`}
+      <button class="xbtn" data-date="${shiftDate(d,7)}">›</button></div></div>`;
+  const vol=ents.reduce((t,e)=>t+volOf(e),0), sets=ents.reduce((t,e)=>t+setCount(e),0);
+  const cr=contribLog(ents,basis);
+
+  // 未完了を上、完了を下に。並べ替えは描画時だけ（入力中に動くと指の位置が変わる）
+  // 未完了が上（元の順）、完了は下。完了群は新しく完了したものが上、最初に完了したものが下
+  const order=ents.map((en,ei)=>({en,ei})).sort((a,b)=>{
+    const fa=isFin(a.en)?1:0, fb=isFin(b.en)?1:0;
+    if(fa!==fb) return fa-fb;
+    return fa? (b.en.finAt||0)-(a.en.finAt||0) : 0;
+  });
+  const body=!ents.length?`<div class="empty">まだ記録がありません。<br>上の「今週の残り」を見て、「＋ 種目を追加」で今日やる種目を足してください。</div>`:
+  order.map(({en,ei})=>{
+    const ex=exOf(en.exId); if(!ex) return '';
+    const prev=lastEntry(en.exId,d), bw=!!ex.bw, fin=isFin(en);
+    return `<div class="ex${fin?' fin':''}">
+      <div class="top rowb"><div><div class="name">${esc(ex.name)}${gymChip(ex)}${wcChip(ex)}${fin?'<span class="fchip">完了</span>':''}</div>
+        <div class="meta">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+        <button class="xbtn" data-act="delex" data-ei="${ei}">✕</button></div>
+      ${prev?`<div class="prev">前回 <b>${prev.date.slice(5).replace('-','/')}</b>　${doneSets(prev.entry).map(s=>`${bw?s.r+'回':s.w+'×'+s.r}${cnt(s)>1?`×${cnt(s)}セット`:''}`).join(' / ')}</div>`:`<div class="prev">前回の記録なし — 今日が基準になります</div>`}
+      ${(()=>{const bst=bestRec(en.exId,d,bw); return bst?`<div class="prev best">最高 ${bw?`<b>${bst.r}回</b>`:`<b>${bst.w}kg</b> × ${bst.r}回`}<span class="dim">　${bst.date.slice(5).replace('-','/')}</span></div>`:''})()}
+      <div class="setrow head${bw?' bw':''}"><span></span>${bw?'':'<span>重量kg</span>'}<span>回数</span><span title="タップで＋1／長押しで−1">セット</span></div>
+      ${(()=>{let no=0;return en.sets.map((s,si)=>{const n=cnt(s);const from=no+1;no+=n;
+        return `<div class="setrow${bw?' bw':''} ${partialRow(s,bw)?'warn':''}" data-ei="${ei}" data-si="${si}">
+        <div class="idx">${n>1?`${from}-${no}`:from}</div>
+        ${bw?'':`<input inputmode="decimal" value="${s.w}" data-f="w" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].w:''}"${fin?' disabled':''}>`}
+        <input inputmode="numeric" value="${s.r}" data-f="r" data-ei="${ei}" data-si="${si}" placeholder="${prev&&prev.entry.sets[si]?prev.entry.sets[si].r:''}"${fin?' disabled':''}>
+        <button class="mult ${n>1?'on':''}" data-act="mult" data-ei="${ei}" data-si="${si}"${fin?' disabled':''}>×${n}</button></div>`}).join('')})()}
+      <div class="exfoot">${fin?'':`<button class="btn sm" data-act="addset" data-ei="${ei}">行を追加</button>
+        <button class="btn sm gh" data-act="rmset" data-ei="${ei}">削除</button>
+        ${prev?`<button class="btn sm" data-act="copyprev" data-ei="${ei}">前回をコピー</button>`:''}`}
+        <span data-foot="${ei}">${exFoot(en)}</span></div>
+      <div class="finrow"><button class="btn sm${fin?'':' pri'}" data-act="fin" data-ei="${ei}">${fin?'完了を戻す':'この種目を完了'}</button></div>
+    </div>`}).join('');
+
+  return `${nav}<div class="days">${strip}</div><div style="height:12px"></div>
+  ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
+  ${bkOverdue()?`<div class="tip warn" style="margin-bottom:12px">バックアップが${S.bk?bkDays()+'日ありません':'まだありません'}。設定タブから書き出しを。</div>`:''}
+  <div id="remCard">${weekLeftCard(weekStart(d),'今週の残り')}</div>
+  <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
+  <div class="xs dim" style="margin:0 0 12px;text-align:center">重量は<b style="color:var(--text)">総重量</b>で入力。<b style="color:var(--text)">「片側」タグ</b>の種目だけ片側（ダンベルは片手）で入れる</div>
+  ${body}
+  ${ents.some(e=>setCount(e)>0)?`<button class="btn wide pri" data-act="finday" style="margin:4px 0 14px">今日のトレーニングを完了</button>`:''}
+  <div class="card" style="margin-top:2px">
+    <div class="rowb"><div><div class="xs dim">この日の総ボリューム</div>
+      <div class="num" id="sVol" style="font-size:28px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
+      <div style="text-align:right"><div class="xs dim">セット</div><div class="num" id="sSets" style="font-size:28px">${sets}</div></div></div>
+    <div id="sBar">${sumBar(cr,sets)}</div>
+    <div id="sLost">${(()=>{const l=dayLost(ents);return l?`<div class="xs" style="color:var(--amber);margin-top:9px">⚠ 未集計 ${l}行（重量か回数が空。この数に入っていません）</div>`:''})()}</div>
+  </div>
+  <div id="crCard">${crCard(cr,sets)}</div>`;
+}
+/* その日のトレーニングを完了：全種目を完了にして、結果シートを出す */
+function finishDay(){
+  const d=selDate, log=S.logs[d]; if(!log||!(log.entries||[]).some(e=>setCount(e)>0))return;
+  const lost=dayLost(log.entries);
+  if(lost&&!confirm(`未集計の行が${lost}行あります（重量か回数が空）。その行は数に入りません。このまま完了しますか？`))return;
+  log.entries.forEach(en=>{ if(setCount(en)>0&&!isFin(en)){en.fin=true;en.finAt=Date.now()} });
+  save(); render(); openDayResult(d);
+}
+function openDayResult(d){
+  const ents=((S.logs[d]||{}).entries)||[];
+  const done=ents.filter(e=>setCount(e)>0);
+  const vol=done.reduce((t,e)=>t+volOf(e),0), sets=done.reduce((t,e)=>t+setCount(e),0), cr=contribLog(done,'sets');
+  const mx=Math.max(1,...MUSCLES.map(k=>cr[k]||0));
+  const muscleRows=MUSCLES.map(k=>({k,v:cr[k]||0})).filter(x=>x.v>=.05).sort((a,b)=>b.v-a.v).map(x=>
+    `<div class="cr"><span class="dim">${x.k}</span><div class="crb"><div class="f" style="width:${x.v/mx*100}%;background:${MCOL[x.k]}"></div></div><span class="v">${r1(x.v)}</span></div>`).join('');
+  const exRows=done.map(en=>{ const ex=exOf(en.exId); if(!ex)return''; const bw=!!ex.bw;
+    const s=doneSets(en).map(x=>`${bw?x.r+'回':x.w+'×'+x.r}${cnt(x)>1?`×${cnt(x)}`:''}`).join(' / ');
+    const past=bestRec(en.exId,d,bw), tmax=Math.max(0,...doneSets(en).map(x=>bw?+x.r:+x.w));
+    const pr=tmax>0&&past&&tmax>(bw?past.r:past.w);   // 過去の最高を超えたときだけ
+    return `<div class="exh"><span class="s" style="flex:1;font-weight:600;color:var(--text)">${esc(ex.name)}${pr?' <span class="chip pr">最高更新</span>':''}</span><span class="e dim">${s}</span></div>`;
+  }).join('');
+  const dt=parse(d);
+  openSheet(`<h3>${d===today()?'今日':`${dt.getMonth()+1}/${dt.getDate()}（${WD[dt.getDay()]}）`}の結果 💪</h3>
+    <div class="rowb" style="margin:14px 0 10px"><div><div class="xs dim">総ボリューム</div>
+      <div class="num" style="font-size:30px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
+      <div style="text-align:right"><div class="xs dim">セット</div><div class="num" style="font-size:30px">${sets}</div><div class="xs dim">${done.length}種目</div></div></div>
+    ${stackBar(cr)}
+    <div class="sect" style="margin-top:16px">部位別（寄与率換算セット）</div>${muscleRows||'<div class="xs dim">—</div>'}
+    <div class="sect" style="margin-top:16px">種目</div><div class="card" style="padding:4px 12px">${exRows}</div>
+    <div style="height:6px"></div><button class="btn pri wide" data-close>閉じる</button>`);
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-basis]'); if(b){basis=b.dataset.basis;refreshToday();return}
+  const d=e.target.closest('[data-date]'); if(d){selDate=d.dataset.date;render();return}
+  const a=e.target.closest('[data-act]'); if(!a)return;
+  const {act}=a.dataset,ei=+a.dataset.ei,si=+a.dataset.si,log=S.logs[selDate];
+  if(act==='finday'){finishDay();return}                                   // 今日のトレーニングを完了→結果シート
+  if(act==='histpick'){openPick(id=>{histEx=id;render()});return}          // 履歴：種目を検索して選ぶ
+  // ×n・✓ は画面を作り直さず、その場だけ更新する（キーボードとフォーカスを保つ）
+  if(act==='mult'){ if(lpFired){lpFired=false;return}
+    const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
+    a.textContent='×'+cnt(s);a.classList.toggle('on',cnt(s)>1);renumber(ei);refreshToday();return}
+  if(act==='fin'){const en=log.entries[ei];
+    if(isFin(en)){en.fin=false;delete en.finAt}
+    else{ const lost=entryLost(en), counted=setCount(en);   // 完了する前に取りこぼしを警告する
+      if(counted===0){ if(!confirm('この種目はまだ数に入る記録がありません（重量か回数が空のまま）。それでも完了しますか？'))return; }
+      else if(lost){ if(!confirm(`重量か回数が空の行が${lost}行あります。その行は数に入りません。それでも完了しますか？`))return; }
+      en.fin=true;en.finAt=Date.now(); }
+    save(); render(); return}
+  if(act==='addset'){const s=log.entries[ei].sets;s.push({w:s.length?s[s.length-1].w:'',r:'',n:1,done:false});save();render()}
+  if(act==='rmset'){const s=log.entries[ei].sets,last=s[s.length-1];
+    if(s.length<2)return;
+    if((+last.w&&+last.r)&&!confirm(`最後の行（${last.w}kg × ${last.r}回）を削除します。`))return;
+    s.pop();save();render()}
+  if(act==='copyprev'){const p=lastEntry(log.entries[ei].exId,selDate); if(!p)return;
+    log.entries[ei].sets=doneSets(p.entry).map(s=>({w:String(s.w),r:String(s.r),n:cnt(s),done:false}));
+    save();render()}
+  if(act==='delex'){const en=log.entries[ei],ex=exOf(en.exId),n=setCount(en);
+    if(n&&!confirm(`「${ex?ex.name:'この種目'}」の記録（${n}セット）を削除します。元に戻せません。`))return;
+    (log.skip=log.skip||[]).push(en.exId);log.entries.splice(ei,1);save();render()}
+  if(act==='pickex'){openPick(id=>{ if(log.skip)log.skip=log.skip.filter(x=>x!==id);
+    if(!log.entries.find(x=>x.exId===id))
+      log.entries.push({exId:id,sets:[{w:'',r:'',n:1,done:false}]});   // 1行だけ。行が要るのは重量を変えるときだけ
+    save();render()})}
+});
+// 入力中は保存と集計更新のみ。render() は呼ばない（呼ぶとフォーカスが飛ぶ）
+document.addEventListener('input',e=>{const f=e.target.dataset.f;
+  if(!(f&&tab==='today'&&['w','r'].includes(f)))return;
+  const v=numFix(e.target.value,f==='w');
+  if(v!==e.target.value)e.target.value=v;
+  S.logs[selDate].entries[+e.target.dataset.ei].sets[+e.target.dataset.si][f]=v;
+  save();refreshToday();});
+
+/* ================= ② 週メニュー ================= */
+// 目標はセット数、ボリュームは結果。予定ボリュームは持たない。
+// この画面は予定だけを扱うので、週の実績集計はここに持たない（2026-08-19）
+/* --- 週の組み立て（部位 → 種目 → 曜日）--------------------------------
+   program は曜日キー "0"〜"6" に加えて "u"（未配置）を持つ。
+   STEP2 で足したセットは "u" に入り、STEP3 で曜日へ移す。
+   週の総セット数を変えるのは STEP2 だけ。STEP3 は移動しかしない。       */
+const DAYKEYS=['1','2','3','4','5','6','0'];   // 月曜始まり
+const allPlan=()=>DAYKEYS.concat('u').reduce((a,k)=>a.concat(S.program[k]||[]),[]);
+const unassigned=()=>S.program.u||[];
+const exWeekSets=id=>allPlan().filter(p=>p.exId===id).reduce((t,p)=>t+p.sets,0);
+const planExIds=()=>{const seen=[];allPlan().forEach(p=>{if(!seen.includes(p.exId))seen.push(p.exId)});return seen};
+const bump=(k,id,n)=>{const L=S.program[k]=S.program[k]||[];const f=L.find(p=>p.exId===id);
+  if(f){f.sets+=n; if(f.sets<=0)L.splice(L.indexOf(f),1);} else if(n>0) L.push({exId:id,sets:n});};
+function addSet(id){ bump('u',id,1) }
+function dropSet(id){ // 未配置から先に減らす
+  for(const k of ['u',...DAYKEYS.slice().reverse()]){
+    const L=S.program[k]||[], f=L.find(p=>p.exId===id);
+    if(f){ bump(k,id,-1); return true } }
+  return false;
+}
+const delPlanEx=id=>{for(const k in S.program) S.program[k]=(S.program[k]||[]).filter(p=>p.exId!==id)};
+// 曜日セルのタップ: 0→1→…→(その日に置ける最大)→0 と循環する。週の合計は変わらない
+function cycleDay(id,day){
+  const cur=((S.program[day]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+  const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets;
+  const next=(un>0)?cur+1:0;                 // 未配置が尽きたら0に戻して全部解放する
+  const d=next-cur;
+  if(d>0){ bump('u',id,-d); bump(day,id,d) } else if(d<0){ bump(day,id,d); bump('u',id,-d) }
+}
+// 長押し: その曜日から1セットだけ外して未配置へ戻す。押し間違いを1操作で直すため
+function unCycleDay(id,day){
+  const cur=((S.program[day]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+  if(cur<=0) return false;
+  bump(day,id,-1); bump('u',id,1); return true;
+}
+/* 曜日セルの長押し。押し切った時点で−1し、直後の click は捨てる（＋1と相殺しないため） */
+let lpT=null, lpCell=null, lpFired=false;
+const lpEnd=()=>{clearTimeout(lpT); if(lpCell){lpCell.classList.remove('lp');lpCell=null}};
+document.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('[data-w="cell"],[data-act="mult"]'); if(!b)return;
+  lpEnd(); lpFired=false; lpCell=b;
+  lpT=setTimeout(()=>{
+    lpFired=true;
+    let hit=false;
+    if(b.dataset.act==='mult'){                       // 今日タブの ×n を1つ減らす
+      const en=(S.logs[selDate]||{entries:[]}).entries[+b.dataset.ei];
+      const st=en&&en.sets[+b.dataset.si];
+      if(st&&cnt(st)>1){ st.n=cnt(st)-1; save();
+        b.textContent='×'+cnt(st); b.classList.toggle('on',cnt(st)>1);
+        renumber(+b.dataset.ei); refreshToday(); hit=true }
+    } else if(unCycleDay(b.dataset.id,b.dataset.d)){ save(); refreshWeek(); hit=true }
+    if(hit&&navigator.vibrate)navigator.vibrate(12);
+    b.classList.add('lp'); setTimeout(()=>b.classList.remove('lp'),200);   // 減ったことを一瞬示す
+    lpCell=null; clearTimeout(lpT);
+  },420);
+});
+['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>document.addEventListener(ev,lpEnd,true));
+// 長押し中に出るコンテキストメニュー／選択メニューを止める
+document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-w="cell"],[data-act="mult"]'))e.preventDefault() });
+const targetOf=k=>+(S.plan&&S.plan.target?S.plan.target[k]:0)||0;
+const targetTotal=()=>MUSCLES.reduce((t,k)=>t+targetOf(k),0);
+/* STEP1の編集対象。'now'=今週の目標(plan.target)、'next'=来週から予約(plan.next)。
+   表示・編集だけ切り替え、残り/消化ぐあい/STEP2 は常に plan.target(=今週)を使う */
+const t1obj=()=>(t1mode==='next'&&S.plan.next)?S.plan.next:S.plan.target;
+const t1of=k=>+((t1obj()||{})[k])||0;
+/* 予約した来週の目標を、その週に入ったら本採用する */
+function promotePlan(){ if(S.plan&&S.plan.nextFrom&&weekStart(today())>=S.plan.nextFrom){
+  if(S.plan.next)S.plan.target=S.plan.next; delete S.plan.next; delete S.plan.nextFrom; if(t1mode==='next')t1mode='now'; save(); } }
+
+const restHTML=(k,got)=>{const tg=targetOf(k), g=got[k]||0, rest=tg-g;
+  const lab=Math.abs(rest)<0.5?'<span class="dim">ちょうど</span>'
+    :rest>0?`<span style="color:var(--amber)">残り ${r1(rest)}</span>`
+    :`<span style="color:var(--green)">＋α ${r1(-rest)}</span>`;
+  return `${r1(g)} <span class="dim">/ ${r1(tg)}</span>　${lab}`};
+
+function vStep1(){
+  const next=t1mode==='next', from=md(shiftDate(weekStart(today()),7)), staged=!!(S.plan&&S.plan.next);
+  const seg=`<div class="seg" style="margin-bottom:10px">
+    <button class="btn sm ${!next?'pri':''}" data-w="t1mode" data-m="now">今週の目標</button>
+    <button class="btn sm ${next?'pri':''}" data-w="t1mode" data-m="next">来週から</button></div>`;
+  const banner=next
+    ? `<div class="tip good" style="margin-bottom:10px"><b>来週（${from}〜）から適用</b>。今週の残り・消化ぐあいは変わりません。編集した内容は次の月曜に自動で切り替わります。
+        <div style="margin-top:9px;display:flex;gap:8px"><button class="btn sm" data-w="t1apply">今すぐ適用</button><button class="btn sm gh" data-w="t1cancel">予約を取り消す</button></div></div>`
+    : (staged?`<div class="tip" style="margin-bottom:10px">来週（${md(S.plan.nextFrom)}〜）からの目標変更を<b>予約中</b>。〔来週から〕で確認・編集できます。</div>`:'');
+  return `${seg}${banner}
+  <div class="tip">1セットは寄与率で各部位に分けて数える。ベンチプレス1セット＝胸0.6／肩前0.15／三頭0.25。</div>
+  <div class="card">
+    ${MUSCLES.map((k,i)=>
+      `<div class="rowb" style="padding:9px 0;${i?'border-top:1px solid var(--line)':''}">
+        <div style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${MCOL[k]};margin-right:7px"></span>${k}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="stp" data-w="tm" data-k="${k}">−</button>
+          <input class="tnum" data-tk="${k}" inputmode="numeric" value="${t1of(k)}">
+          <button class="stp" data-w="tp" data-k="${k}">＋</button></div></div>`).join('')}
+  </div>
+  <div style="text-align:right;margin-top:-4px">
+    <button data-w="zero" style="font-size:12px;color:var(--dimmer);padding:6px 4px">すべて0にする</button></div>`;
+}
+
+function vStep2(){
+  const got=contribPlan(allPlan()), ids=planExIds();
+  return `<div class="xs dim" style="margin:0 0 12px">部位ごとの<b style="color:var(--text)">目標に対する充足</b>を、その部位の種目のすぐ上に出しています。バーの残りが0に近づくよう下の種目でセットを足してください。見出しのセット数は<b style="color:var(--text)">寄与率換算</b>（他部位の種目からの流入も含む合計）。</div>
+  ${GROUPS.map(g=>{const list=ids.map(exOf).filter(x=>x&&groupOf(x)===g);
+    const n=groupContrib(g,got);
+    return `<div class="gsec" style="--g:${GCOL[g]}">${g}
+      <span><span class="num" data-gs="${g}" style="margin-right:9px">${n>=.05?r1(n)+'セット':''}</span>
+        <button class="gadd" data-w="addex" data-ng="${g}">＋ 追加</button></span></div>
+    <div class="card" style="padding:11px 11px 5px">
+      ${GMEM[g].map(k=>{const tg=targetOf(k), pct=tg?Math.min(100,(got[k]||0)/tg*100):0;
+        return `<div style="margin-bottom:8px">
+          <div class="rowb xs"><span>${k}</span><span class="num" data-mv="${k}">${restHTML(k,got)}</span></div>
+          <div class="bar" style="margin-top:3px"><i data-mb="${k}" style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    </div>
+    ${list.length?list.map(ex=>`<div class="card" style="padding:10px 11px">
+      <div class="rowb">
+        <div><div style="font-weight:600">${esc(ex.name)}${gymChip(ex)}</div>
+          <div class="xs dim">${cList(ex.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="stp" data-w="em" data-id="${ex.id}">−</button>
+          <span class="num" data-ev="${ex.id}" style="width:30px;text-align:center;font-size:19px">${exWeekSets(ex.id)}</span>
+          <button class="stp" data-w="ep" data-id="${ex.id}">＋</button>
+          <button class="xbtn" data-w="ex" data-id="${ex.id}">✕</button></div></div></div>`).join('')
+      :'<div class="xs dim" style="padding:2px 0 8px">まだありません</div>'}`}).join('')}`;
+}
+
+function vStep3(){
+  const ids=planExIds();
+  const unTotal=unassigned().reduce((t,p)=>t+p.sets,0);
+  // 種目ごとに曜日ボタンを並べる。タップでその曜日のセット数が増え、最大まで行くと0に戻る
+  const rows=byGroup(ids.map(exOf).filter(Boolean)).map(([g,list])=>
+    `<div class="gsec" style="--g:${GCOL[g]}">${g}</div>`+list.map(ex=>{const id=ex.id;
+    const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets, tot=exWeekSets(id);
+    return `<div class="card" style="padding:11px">
+      <div class="rowb" style="margin-bottom:9px">
+        <div style="font-weight:600;min-width:0">${esc(ex.name)}${gymChip(ex)}</div>
+        <span class="chip ${un?'warn':''}" style="flex:0 0 auto" data-un="${id}">${un?`未配置 ${un}`:`${tot}セット配置済み`}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${DAYKEYS.map(d=>{
+        const n=((S.program[d]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+        return `<button class="dcell${n?' on':''}" data-w="cell" data-id="${id}" data-d="${d}">
+          <i>${WD[+d]}</i><b data-cell="${id}|${d}">${n||'·'}</b></button>`}).join('')}</div></div>`}).join('')).join('');
+
+  const days=DAYKEYS.map(d=>{
+    const L=S.program[d]||[];
+    return `<div class="rowb" style="padding:8px 0;border-top:1px solid var(--line)">
+      <div style="min-width:0">
+        <span class="num" style="font-size:17px">${WD[+d]}</span>
+        <span class="small dim" data-dt="${d}">　${L.length?L.reduce((t,p)=>t+p.sets,0)+'セット':'休養'}</span>
+        <div class="xs dim" data-dl="${d}" style="margin-top:2px">${L.map(p=>(exOf(p.exId)||{}).name).filter(Boolean).join('・')||'—'}</div></div>
+      <div style="width:96px;flex:0 0 auto" data-ds="${d}">${L.length?stackBar(contribPlan(L)):''}</div></div>`}).join('');
+
+  return `<div class="tip${unTotal?' warn':' good'}" id="unBar">${unTotal?`未配置が ${unTotal} セット残っています。`:'すべて曜日に配置されています。'}</div>
+  <div class="xs dim" style="margin:-2px 0 10px">曜日を<b style="color:var(--text)">タップで＋1</b>、<b style="color:var(--text)">長押しで−1</b>。未配置が尽きた状態でタップすると0に戻して全部解放します。</div>
+  ${ids.length?rows:'<div class="empty">種目がありません。<br>STEP2で種目を足してください。</div>'}
+  <div class="sect">曜日ごとの合計</div>
+  <div class="card" style="padding:2px 11px 11px">${days}</div>
+  <button class="btn wide" data-w="tpl">フィジーク向け 週6分割を入れる</button>
+  <div class="xs dim" style="margin-top:8px;text-align:center">目標・種目・配置をまとめて置き換えます（記録は消えません）</div>`;
+}
+
+/* この画面は予定だけを扱う。実績は「今日」タブの予定と進捗カードで見る */
+const planDays=()=>DAYKEYS.filter(d=>(S.program[d]||[]).reduce((t,p)=>t+p.sets,0)>0).length;
+
+/* 週の実績合計。数えるのは記録した全セット（月〜日。§5.7） */
+function weekTotals(w){ let sets=0,vol=0;
+  logDates().filter(d=>weekStart(d)===w).forEach(d=>{ (S.logs[d].entries||[]).forEach(en=>{ sets+=setCount(en); vol+=volOf(en); }); });
+  return {sets,vol}; }
+
+/* ================= 履歴（アーカイブ） ================= */
+let histEx='';   // 種目別の記録で選んでいる種目
+/* 種目の推定1RM（自重は総レップ）の推移を折れ線で */
+function lineChart(pts,unit){
+  const W=320,H=86,pad=8,n=pts.length, vs=pts.map(p=>p.v), mn=Math.min(...vs),mx=Math.max(...vs), span=mx-mn||1;
+  const x=i=>pad+(n===1?(W-pad*2)/2:i*(W-pad*2)/(n-1)), y=v=>H-16-((v-mn)/span)*(H-30);
+  const path=pts.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+  const dots=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.2" fill="#FAFAFA"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin:6px 0 2px">
+    <path d="${path}" fill="none" stroke="#FAFAFA" stroke-width="1.6"/>${dots}
+    <text x="${pad}" y="11" font-size="8.5" style="fill:#8A8A91">推定1RM等の推移（最新 ${r1(pts[n-1].v)}${unit}）</text></svg>`;
+}
+/* ④ 種目別の記録：これまでの記録一覧＋推定1RM推移 */
+function exHistDetail(exId){
+  const ex=exOf(exId); if(!ex) return '<div class="xs dim" style="margin-top:8px">この種目は見つかりません。</div>';
+  const bw=!!ex.bw, hist=allEntries(exId);
+  if(!hist.length) return '<div class="xs dim" style="margin-top:8px">まだ記録がありません。</div>';
+  const pts=hist.map(h=>({v:bw?repsOf(h.entry):bestE1(h.entry)})).filter(p=>p.v>0);
+  const line=pts.length>=2?lineChart(pts,bw?'回':'kg'):'';
+  const rows=hist.slice().reverse().map(h=>{
+    const s=doneSets(h.entry).map(x=>`${bw?x.r+'回':x.w+'×'+x.r}${cnt(x)>1?`×${cnt(x)}`:''}`).join(' / ');
+    const e=bw?repsOf(h.entry)+'回':(bestE1(h.entry)?`1RM ${r1(bestE1(h.entry))}`:'');
+    return `<div class="exh"><span class="d">${h.date.slice(5).replace('-','/')}</span><span class="s">${s}</span><span class="e">${e}</span></div>`;
+  }).join('');
+  return `${line}<div style="margin-top:8px">${rows}</div>`;
+}
+function vHist(){
+  const weeks={};
+  logDates().forEach(d=>{ const w=weekStart(d); (weeks[w]=weeks[w]||[]).push(d); });
+  const wkeys=Object.keys(weeks).sort().reverse();   // 新しい週が上
+  if(!wkeys.length) return `<div class="empty">まだ記録がありません。<br>「今日」タブで記録すると、ここに週ごとにたまっていきます。</div>`;
+  const hx=histEx?exOf(histEx):null;
+  const exSel=`<div class="sect">種目別の記録</div>
+  <div class="card">
+    <button class="btn wide" data-act="histpick">${hx?`${esc(hx.name)}${hx.gym?' / '+esc(hx.gym):''}　▼`:'種目を検索して選ぶ'}</button>
+    ${histEx?exHistDetail(histEx):'<div class="xs dim" style="margin-top:8px">種目を検索して選ぶと、これまでの記録と推定1RMの推移が出ます。</div>'}
+  </div>`;
+  return exSel+
+  `<div class="sect">週ごとの部位別セット</div>
+  <div class="xs dim" style="margin:-2px 0 10px">見出しをタップで開くと部位別の合計（寄与率換算・§5.2）。</div>`+
+  wkeys.map((w,wi)=>{
+    const t=weekTotals(w), days=weeks[w].length, c=weekContrib(w);
+    const mx=Math.max(1,...MUSCLES.map(k=>c[k]||0));
+    const rows=MUSCLES.map(k=>({k,v:c[k]||0})).filter(x=>x.v>=0.05).sort((a,b)=>b.v-a.v).map(x=>
+      `<div class="cr"><span class="dim">${x.k}</span>
+        <div class="crb"><div class="f" style="width:${x.v/mx*100}%;background:${MCOL[x.k]}"></div></div>
+        <span class="v">${r1(x.v)}</span></div>`).join('');
+    return `<details class="wk"${wi===0?' open':''}>
+      <summary>
+        <div style="min-width:0"><div class="num" style="font-size:17px">${md(w)} – ${md(shiftDate(w,6))}</div>
+          <div class="xs dim">${t.sets}セット · ${Math.round(t.vol).toLocaleString()}kg · ${days}日</div></div>
+        <div style="width:88px;flex:0 0 auto">${stackBar(c)}</div>
+      </summary>
+      <div class="wkbody">${rows||'<div class="xs dim" style="padding:8px 0">記録なし</div>'}</div>
+    </details>`;
+  }).join('');
+}
+// 今週あとどの部位が何セット残っているか。今日タブでは「今週の残り」として当日決めるための道具になる
+function weekLeftCard(w,title){
+  w=w||weekStart(today());
+  const got=weekContrib(w);
+  const ks=MUSCLES.filter(k=>targetOf(k)>=1||(got[k]||0)>=.05);
+  if(!ks.length) return '';
+  const left=ks.reduce((t,k)=>t+Math.max(0,targetOf(k)-(got[k]||0)),0);
+  return `<div class="sect">${title||'今週の消化ぐあい'}</div>
+  <div class="card">
+    <div class="rowb" style="margin-bottom:11px"><span class="small dim">残り合計</span>
+      <span class="num" style="font-size:21px${left<.05?';color:var(--green)':''}">${left<.05?'すべて消化':r1(left)+'セット'}</span></div>
+    ${ks.map(k=>{const b=targetOf(k),a=got[k]||0,rest=b-a,pct=b>=1?Math.min(100,a/b*100):(a>0?100:0);
+      const lab=b<1?'<span class="dim">目標外</span>'
+        :rest<.05?'<span style="color:var(--green)">消化ずみ</span>'
+        :`<span style="color:var(--amber)">残り ${r1(rest)}</span>`;
+      return `<div style="margin-bottom:10px">
+        <div class="rowb xs"><span>${k}</span>
+          <span class="num">${r1(a)} <span class="dim">/ 目標 ${b>=1?b:'—'}</span>　${lab}</span></div>
+        <div class="bar" style="margin-top:3px"><i style="width:${pct}%;background:${MCOL[k]}"></i></div></div>`}).join('')}
+    <div class="xs dim" style="margin-top:4px">分母は<b>STEP1で決めた目標</b>のセット数。実績はその週（月〜日。§5.7）の記録を寄与率換算（§5.2）したもの。目標を持たない部位に実績が乗ったら「目標外」と出す。</div>
+  </div>`;
+}
+function vWeek(){
+  const plan=allPlan(), totalSets=plan.reduce((t,p)=>t+p.sets,0);
+  const steps=[['1','部位'],['2','種目'],['3','曜日']];
+  return `<div class="card">
+    <div class="rowb"><div><div class="xs dim">週の総セット（予定）</div>
+      <div class="num" id="wTotal" style="font-size:28px">${totalSets}</div>
+      <div class="xs dim">実績は「今日」タブで見る</div></div>
+      <div style="text-align:right"><div class="xs dim">トレーニング日</div>
+        <div class="num" id="wDays" style="font-size:28px">${planDays()}<span class="dim" style="font-size:13px"> 日</span></div></div></div>
+    <div id="wBar">${sumBar(contribPlan(plan),totalSets)}</div>
+  </div>
+  ${weekLeftCard()}
+  <div class="seg" style="margin-bottom:12px">${steps.map(s=>
+    `<button class="btn sm ${wstep===+s[0]?'pri':''}" data-w="step" data-s="${s[0]}">${s[0]}. ${s[1]}</button>`).join('')}</div>
+  ${wstep===1?vStep1():wstep===2?vStep2():vStep3()}`;
+}
+
+/* いま表示している画面の構成が変わったかどうか。同じなら数字だけ差し替える（§10-2）。
+   STEP2は未配置バケツを表示しないので、そこへセットが移っても作り直さない。 */
+const planSig=()=>(wstep===2||wstep===3) ? planExIds().join(',')
+  : DAYKEYS.concat('u').map(k=>k+':'+(S.program[k]||[]).map(p=>p.exId).join(',')).join('|');
+function refreshWeek(){
+  if(tab!=='week')return;
+  const g=id=>document.getElementById(id), q=s=>document.querySelector(s);
+  const plan=allPlan(), tot=plan.reduce((a,p)=>a+p.sets,0);
+  const t=g('wTotal'); if(t)t.textContent=tot;
+  const wd=g('wDays'); if(wd)wd.innerHTML=`${planDays()}<span class="dim" style="font-size:13px"> 日</span>`;
+  const wb=g('wBar'); if(wb)wb.innerHTML=sumBar(contribPlan(plan),tot);
+  if(wstep===1){
+    MUSCLES.forEach(k=>{const v=q(`[data-tk="${k}"]`); if(v&&v!==document.activeElement)v.value=t1of(k)});
+  }
+  if(wstep===2){
+    const got=contribPlan(allPlan());
+    MUSCLES.forEach(k=>{
+      const tg=targetOf(k);
+      const v=q(`[data-mv="${k}"]`); if(v)v.innerHTML=restHTML(k,got);
+      const b=q(`[data-mb="${k}"]`); if(b)b.style.width=(tg?Math.min(100,(got[k]||0)/tg*100):0)+'%';
+    });
+    planExIds().forEach(id=>{const v=q(`[data-ev="${id}"]`); if(v)v.textContent=exWeekSets(id)});
+    GROUPS.forEach(g=>{const el=q(`[data-gs="${g}"]`); if(!el)return;
+      const n=groupContrib(g,got); el.textContent=n>=.05?r1(n)+'セット':''});
+  }
+  if(wstep===3){
+    DAYKEYS.forEach(d=>{
+      const L=S.program[d]||[];
+      const t2=q(`[data-dt="${d}"]`); if(t2)t2.textContent='　'+(L.length?L.reduce((a,p)=>a+p.sets,0)+'セット':'休養');
+      const s2=q(`[data-ds="${d}"]`); if(s2)s2.innerHTML=L.length?stackBar(contribPlan(L)):'';
+      const l2=q(`[data-dl="${d}"]`); if(l2)l2.textContent=L.map(p=>(exOf(p.exId)||{}).name).filter(Boolean).join('・')||'—';
+    });
+    planExIds().forEach(id=>{
+      const un=(unassigned().find(p=>p.exId===id)||{sets:0}).sets;
+      const c=q(`[data-un="${id}"]`);
+      if(c){ c.textContent=un?`未配置 ${un}`:`${exWeekSets(id)}セット配置済み`; c.classList.toggle('warn',!!un) }
+      DAYKEYS.forEach(d=>{
+        const n=((S.program[d]||[]).find(p=>p.exId===id)||{sets:0}).sets;
+        const b=q(`[data-cell="${id}|${d}"]`);
+        if(b){ b.textContent=n||'·'; b.parentElement.classList.toggle('on',!!n) }
+      });
+    });
+    const ub=g('unBar'); if(ub){ const t=unassigned().reduce((a,p)=>a+p.sets,0);
+      ub.textContent=t?`未配置が ${t} セット残っています。`:'すべて曜日に配置されています。';
+      ub.className='tip'+(t?' warn':' good'); }
+  }
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-w]'); if(!b)return;
+  const {w,k,id,d,s}=b.dataset;
+  if(w==='step'){wstep=+s;render();return}
+  if(w==='t1mode'){ if(b.dataset.m==='next'&&!S.plan.next){S.plan.next=Object.assign({},S.plan.target);S.plan.nextFrom=shiftDate(weekStart(today()),7);save();} t1mode=b.dataset.m; render(); return }
+  if(w==='t1apply'){ if(S.plan.next)S.plan.target=Object.assign({},S.plan.next); delete S.plan.next; delete S.plan.nextFrom; t1mode='now'; save(); render(); return }
+  if(w==='t1cancel'){ delete S.plan.next; delete S.plan.nextFrom; t1mode='now'; save(); render(); return }
+  const sig=planSig();
+  if(w==='tm'){t1obj()[k]=Math.max(0,t1of(k)-1)}
+  if(w==='tp'){t1obj()[k]=t1of(k)+1}
+  if(w==='zero'){ if(!confirm(`${MUSCLES.length}部位すべての目標を0にします。よろしいですか？`))return;
+    const o=t1obj(); MUSCLES.forEach(m=>o[m]=0); }
+  if(w==='ep'){addSet(id)}
+  if(w==='em'){dropSet(id)}
+  if(w==='ex'){const ex=exOf(id); if(!confirm(`「${ex?ex.name:''}」を週メニューから外します。`))return; delPlanEx(id)}
+  if(w==='addex'){openPick(x=>{addSet(x);save();render()}, b.dataset.ng);return}
+  if(w==='cell'){ if(lpFired){lpFired=false;return} cycleDay(id,d) }
+  if(w==='tpl'){ if(!confirm('目標・種目・曜日配置をまとめて置き換えます。よろしいですか？'))return;
+    addStdEx();                                       // 足りない標準種目を先に補う
+    const p={0:[],1:[],2:[],3:[],4:[],5:[],6:[],u:[]};
+    for(const day in TPL.days) p[day]=TPL.days[day].map(x=>{const[n,st]=x.split(':');const ex=S.ex.find(y=>y.name===n);return ex?{exId:ex.id,sets:+st}:null}).filter(Boolean);
+    S.program=p;
+    const got=contribPlan(allPlan());
+    MUSCLES.forEach(m=>S.plan.target[m]=Math.round(got[m]||0)); }
+  save();
+  if(planSig()===sig) refreshWeek(); else render();   // 構成が変わったときだけ作り直す
+});
+// 目標セット数の直接入力。数字以外と全角は弾き、整数だけを保存する（§5.1.1）
+document.addEventListener('input',e=>{
+  const k=e.target.dataset.tk; if(k===undefined)return;
+  const v=numFix(e.target.value,false);
+  if(v!==e.target.value)e.target.value=v;
+  t1obj()[k]=Math.max(0,+v||0); save(); refreshWeek();
+});
+// 1RM計算（参考）。重量・回数が変わるたびに計算し直す
+document.addEventListener('input',e=>{
+  if(e.target.id!=='cv_w'&&e.target.id!=='cv_r')return;
+  const v=numFix(e.target.value,e.target.id==='cv_w'); if(v!==e.target.value)e.target.value=v;
+  cvCalc();
+});
+// 設定タブの種目検索。名前・ジムで絞り、該当のない部位セクションは丸ごと隠す（再描画しないので入力欄のフォーカスを保つ）
+document.addEventListener('input',e=>{
+  if(e.target.id!=='exq')return;
+  const q=e.target.value.trim().toLowerCase(); let shown=0;
+  document.querySelectorAll('#app .exsec').forEach(sec=>{
+    let any=false;
+    sec.querySelectorAll('.exrow').forEach(r=>{const m=!q||(r.dataset.q||'').toLowerCase().includes(q); r.style.display=m?'':'none'; if(m)any=true});
+    const vis=!q||any; sec.style.display=vis?'':'none'; if(vis)shown++;
+  });
+  const none=document.getElementById('exNone'); if(none)none.style.display=(q&&!shown)?'':'none';
+});
+document.addEventListener('change',e=>{
+  const k=e.target.dataset.tk; if(k!==undefined)e.target.value=t1of(k);   // 空欄で離れたら0を出す
+});
+
+/* ================= ① 目標 ================= */
+function monthsLeft(dl){ if(!dl)return null; const a=new Date(),b=parse(dl);
+  return Math.max(0,(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth())+(b.getDate()>=a.getDate()?0:-1)); }
+const hasVal=v=>v!=null&&v!=='';
+function vGoal(){
+  const lifts=S.lifts.map((g,i)=>{
+    const ex=exOf(g.exId); if(!ex)return'';
+    const h=allEntries(g.exId).map(x=>bestE1(x.entry));
+    const cur=h.length?h[h.length-1]:0, start=g.start||cur;
+    const pct=Math.min(100,Math.max(0,(cur-start)/((g.target-start)||1)*100));
+    const ml=monthsLeft(g.deadline), per=ml?(g.target-cur)/Math.max(1,ml):null;
+    return `<div class="card"><div class="rowb"><div style="font-family:var(--disp);font-size:19px;font-weight:600">${esc(ex.name)}</div>
+      <button class="btn sm gh" data-g="dl" data-i="${i}">✕</button></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0 5px">
+        <span class="num" style="font-size:30px">${r1(cur)}</span><span class="dim">/ ${g.target} kg</span>
+        <span class="chip" style="margin-left:auto">${Math.round(pct)}%</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="xs dim" style="margin-top:6px">推定1RM（オコーナー式）で判定${per!==null?`　今月の目安 ${r1(cur+per)}kg（残り${ml}か月）`:''}</div></div>`}).join('');
+
+  return `<div class="sect">種目の目標</div>
+  ${lifts||`<div class="empty">ベンチプレス130kgなど、挙上目標を登録できます。</div>`}
+  <button class="btn wide" data-g="new">＋ 種目の目標を追加</button>
+  <div class="sect" style="margin-top:24px">参考 ｜ 1RM計算</div>
+  <div class="card">
+    <div class="xs dim" style="margin-bottom:10px">やった<b style="color:var(--text)">重量×回数</b>から、推定1RMと各レップでの目安重量を出します（オコーナー式 重量×(1+回数/40)）。<b>低レップ（〜5,6回）ほど正確</b>で、高レップは誤差が増えます。</div>
+    <div class="g2">
+      <div><label class="f">重量kg</label><input id="cv_w" inputmode="decimal" placeholder="100"></div>
+      <div><label class="f">回数</label><input id="cv_r" inputmode="numeric" placeholder="5"></div></div>
+    <div style="height:12px"></div>
+    <div id="cv_out"></div>
+  </div>`;
+}
+/* 1RM計算。入力を作り直さず #cv_out だけ書き換える（フォーカスを保つ）。公式(オコーナー式)のみ。 */
+function cvCalc(){
+  const wEl=document.getElementById('cv_w'); if(!wEl)return;
+  const w=+numFix(wEl.value,true)||0;
+  const r=+numFix((document.getElementById('cv_r')||{}).value||'',false)||0;
+  const out=document.getElementById('cv_out'); if(!out)return;
+  const one=e1rm(w,r);
+  if(!one){ out.innerHTML='<span class="xs dim">重量と回数を入れると推定します。</span>'; return; }
+  out.innerHTML=`<div class="rowb" style="padding:6px 0;border-top:1px solid var(--line)">
+      <span>推定1RM</span><span class="num" style="font-size:26px">${Math.round(one)}<span class="dim" style="font-size:12px"> kg</span></span></div>
+    <div class="xs dim" style="margin:9px 0 3px">各レップの目安重量</div>
+    ${RMREPS.map(n=>`<div class="rowb" style="padding:4px 0${n>RMREPS[0]?';border-top:1px solid var(--line)':''}"><span class="dim">${n}回</span><span class="num" style="font-size:18px">${Math.round(one/(1+n/40))}<span class="dim" style="font-size:11px"> kg</span></span></div>`).join('')}
+    <div class="xs dim" style="margin-top:7px">${w}kg×${r}回 → 推定1RM ${r1(one)}kg（オコーナー式）。</div>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-g]'); if(!b)return;
+  const a=b.dataset.g;
+  if(a==='dl'){S.lifts.splice(+b.dataset.i,1);save();render();return}
+  if(a==='new'){ if(!S.ex.filter(x=>!x.bw).length){alert('先に設定タブで種目を登録してください。（自重種目は推定1RMが出ないため対象外です）');return}
+    const d=new Date();d.setMonth(d.getMonth()+6);
+    openSheet(`<h3>種目の目標を追加</h3><div class="xs dim" style="margin:4px 0 12px">推定1RMがこの重量に届いたら達成です。</div>
+      <label class="f">種目</label><select id="l_e">${S.ex.filter(x=>!x.bw).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+      <div style="height:10px"></div><div class="g2">
+      <div><label class="f">目標 kg</label><input id="l_w" inputmode="decimal" value="130"></div>
+      <div><label class="f">期限</label><input id="l_d" type="date" value="${ds(d)}"></div></div>
+      <div style="height:14px"></div><button class="btn pri wide" id="l_ok">保存する</button>
+      <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+      $('#l_ok').onclick=()=>{ const id=$('#l_e').value,h=allEntries(id).map(x=>bestE1(x.entry));
+        S.lifts.push({exId:id,target:+$('#l_w').value||0,deadline:$('#l_d').value,start:h.length?h[h.length-1]:0});
+        save();closeSheet();render();};});
+  }
+});
+
+/* 標準の30種目を足す。すでに同じ名前があるものは飛ばす（上書きしない） */
+function addStdEx(){
+  let n=0;
+  EXDEF.forEach(d=>{ if(S.ex.some(e=>e.name===d.name))return;
+    S.ex.push({...d,id:S.ex.some(e=>e.id===d.id)?'u'+Date.now()+n:d.id,c:{...d.c}}); n++; });
+  return n;
+}
+
+/* ================= ④ 設定（種目と寄与率） ================= */
+function vSet(){
+  return `${hasRecords()?(()=>{const d=bkDays();
+    return `<div class="tip${bkOverdue()?' warn':' good'}" style="margin-bottom:14px">${bkOverdue()
+      ? `<b>バックアップを推奨。</b> ${S.bk?`最後の書き出しから${d}日たっています`:'まだ一度も書き出していません'}。下の「記録を書き出す」でファイル保存を。`
+      : `最終バックアップ：<b>${d===0?'今日':d+'日前'}</b>`}</div>`;})():''}
+  <div class="sect">種目と寄与率</div>
+  <div class="card"><div class="xs dim" style="margin-bottom:10px">寄与率は「その種目1セットが、どの部位に何割の負荷をかけるか」。合計100%になるよう自動調整されます。</div>
+    <input id="exq" placeholder="種目を検索（名前・ジム）" style="margin-bottom:10px">
+    <div id="exNone" class="xs dim" style="display:none;padding:8px 0">該当する種目がありません。</div>
+    ${GROUPS.map(g=>{const list=S.ex.filter(x=>groupOf(x)===g);
+      return `<div class="exsec"><div class="gsec" style="margin-top:14px;--g:${GCOL[g]}">${g}
+        <span><span style="margin-right:9px">${list.length?list.length+'種目':''}</span>
+          <button class="gadd" data-x="new" data-ng="${g}">＋ 追加</button></span></div>
+      ${list.length?list.map(x=>`<div class="rowb exrow" data-q="${esc(x.name)}${x.gym?' '+esc(x.gym):''}" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div><div style="font-weight:600">${esc(x.name)}${gymChip(x)}</div>
+        <div class="xs dim">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></div>
+      <button class="btn sm gh" data-x="edit" data-i="${S.ex.indexOf(x)}">編集</button></div>`).join('')
+        :'<div class="xs dim" style="padding:8px 0">まだありません</div>'}</div>`}).join('')}
+    <div style="height:14px"></div><button class="btn wide gh" data-x="std">標準の30種目を入れる</button>
+    <div class="xs dim" style="margin-top:8px">標準の30種目は寄与率が設定済みです。同じ名前の種目があるものは飛ばします。</div></div>
+  <div class="sect">ジム</div>
+  <div class="card"><div class="xs dim" style="margin-bottom:8px">種目名に足す候補です。マシンはジムごとに機構が違うので、複製して別種目として記録します。</div>
+    ${(S.gyms||[]).map((g,i)=>`<div class="rowb" style="padding:8px 0;${i?'border-top:1px solid var(--line)':''}">
+      <div style="font-weight:600">${esc(g)}</div>
+      <button class="xbtn" data-gymdel="${i}">✕</button></div>`).join('')||'<div class="empty" style="padding:14px 0">よく行くジムを登録すると、<br>種目名にワンタップで足せます。</div>'}
+    <div style="height:10px"></div><button class="btn wide" data-gymadd>＋ ジムを追加</button></div>
+  <div class="sect">その他</div>
+  <div class="card">
+    <button class="btn wide" data-d="ex">記録を書き出す</button><div style="height:8px"></div>
+    <button class="btn wide" data-d="im">記録を読み込む</button><div style="height:8px"></div>
+    <button class="btn wide danger" data-d="rs">すべて消去</button>
+    <div class="xs dim" style="margin-top:9px">データはこの端末の中だけに保存されます。機種変更の前に書き出してください。</div>
+    <div class="xs" style="margin-top:10px;color:var(--dimmer)">版 ${BUILD}</div></div>`;
+}
+let afterNew=null;   // ピッカーから新規作成したとき、その種目をその日に足すためのコールバック
+function openExEdit(mode,i,ng){ const isNew=(mode==='new'||mode==='dup');
+    // dup = 既存の寄与率・レップ帯をそのまま引き継いで別種目にする（ジムごとのマシンを分けるため）
+    const ex=mode==='new'?{name:'',c:{},kind:'mc',g:ng||''}   // 新規は寄与率も空から。押したセクションをメイン部位の初期値にする
+      :mode==='dup'?{...S.ex[i],c:{...S.ex[i].c}}
+      :S.ex[i];
+    // 寄与率の1行。部位は未選択から始める（初期値を入れない）
+    const crow=(k,v)=>`<div style="display:grid;grid-template-columns:1fr 74px 40px;gap:8px;margin-bottom:8px">
+      <select class="c_m"><option value=""${k?'':' selected'}>部位を選ぶ</option>${MUSCLES.map(m=>`<option${k===m?' selected':''}>${m}</option>`).join('')}</select>
+      <input class="c_v" inputmode="numeric" value="${v?Math.round(v*100):''}" placeholder="%">
+      <button class="xbtn c_x" style="width:40px">✕</button></div>`;
+    const cs=cList(ex.c);
+    openSheet(`<h3>${mode==='new'?'種目を追加':mode==='dup'?'種目を複製':'種目を編集'}</h3><div style="height:10px"></div>
+      <label class="f">種目名</label><input id="x_n" value="${esc(ex.name)}">
+      <div style="height:10px"></div>
+      <label class="f">メイン部位</label>
+      <select id="x_g">${GROUPS.map(g=>`<option${groupOf(ex)===g?' selected':''}>${g}</option>`).join('')}</select>
+      <label style="display:flex;align-items:center;gap:9px;margin-top:11px;font-size:14px">
+        <input type="checkbox" id="x_bw" style="width:20px;height:20px;flex:0 0 auto"${ex.bw?' checked':''}>
+        自重（重量を入力しない）</label>
+      <div style="height:10px"></div>
+      <label class="f">重量の数え方</label>
+      <select id="x_wc"><option value="total"${ex.wc!=='side'?' selected':''}>総重量（バー＋全プレート／マシンの表示）</option><option value="side"${ex.wc==='side'?' selected':''}>片側（ダンベルは片手）</option></select>
+      <div class="xs dim" style="margin-top:5px">種目ごとに固定して、片側/両側の取り違えを防ぎます。「片側」にすると記録画面にタグが出ます。</div>
+      ${(S.gyms||[]).length?`<div style="height:10px"></div><label class="f">ジム</label>
+        <select id="x_gym"><option value="">指定しない</option>${S.gyms.map(g=>
+          `<option${(ex.gym||'')===g?' selected':''}>${esc(g)}</option>`).join('')}</select>`:''}
+      ${mode==='dup'?'<div class="xs dim" style="margin-top:6px">ジム名を付けて区別してください。寄与率とレップ帯は複製元のままです。</div>':''}
+
+      <div class="sect">寄与率（部位 / %）</div>
+      <select id="x_pre"><option value="">型から入れる（選ぶと下が埋まります）</option>${
+        GROUPS.map(g=>{const list=CPRESET.map((c,i)=>[c,i]).filter(([c])=>c[0]===g);
+          return list.length?`<optgroup label="${g}">${list.map(([c,i])=>`<option value="${i}">${c[1]}</option>`).join('')}</optgroup>`:''}).join('')
+      }</select>
+      <div style="height:10px"></div>
+      <div id="x_c">${(cs.length?cs:[['',0]]).slice(0,4).map(([k,v])=>crow(k,v)).join('')}</div>
+      <button class="btn sm gh" id="x_add">＋ 部位を追加</button>
+      <div class="xs dim" style="margin-top:8px">型はあくまで目安です。入れたあとに自由に直せます。<br>
+        1部位だけなら%は空でかまいません（100%として扱います）。合計は100%になるよう自動で調整されます。</div>
+      <div style="height:14px"></div><button class="btn pri wide" id="x_ok">保存する</button>
+      ${isNew?'':`<div style="height:8px"></div><button class="btn wide" data-x="dup" data-i="${i}">この種目を複製</button>
+      <div style="height:8px"></div><button class="btn wide danger" id="x_del">この種目を削除</button>`}
+      <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+      const wire=()=>sheet.querySelectorAll('.c_x').forEach(b=>b.onclick=()=>{
+        const rowsNow=sheet.querySelectorAll('#x_c > div');
+        if(rowsNow.length>1) b.parentElement.remove();
+        else { b.parentElement.querySelector('.c_m').value=''; b.parentElement.querySelector('.c_v').value=''; }
+      });
+      wire();
+      $('#x_pre').onchange=ev=>{ const i=ev.target.value; if(i==='')return;
+        const c=CPRESET[+i][2];
+        $('#x_c').innerHTML=Object.entries(c).map(([k,v])=>crow(k,v)).join('');
+        wire(); ev.target.value=''; };
+      $('#x_add').onclick=()=>{ const box=$('#x_c');
+        if(box.children.length>=4){alert('部位は4つまでです。');return}
+        box.insertAdjacentHTML('beforeend',crow('',0)); wire(); };
+      $('#x_ok').onclick=()=>{
+        const ms=[...sheet.querySelectorAll('.c_m')].map(s=>s.value),vs=[...sheet.querySelectorAll('.c_v')].map(s=>+s.value||0);
+        const c={}; ms.forEach((m,j)=>{if(m&&vs[j]>0)c[m]=(c[m]||0)+vs[j]});
+        const picked=ms.filter(Boolean);
+        if(!Object.keys(c).length&&picked.length===1) c[picked[0]]=100;   // 1部位だけなら%は省略できる
+        const t=Object.values(c).reduce((a,b)=>a+b,0);
+        if(!t){alert('部位を選んでください。2つ以上のときは%も入れてください。');return}
+        for(const k in c)c[k]=Math.round(c[k]/t*100)/100;
+        for(const k in c) if(!(c[k]>0)) delete c[k];   // 正規化で0に丸められた部位は残さない
+        if(!Object.keys(c).length){alert('寄与率が小さすぎます。値を見直してください。');return}
+        const gy=$('#x_gym'); const o={...ex,name:$('#x_n').value.trim()||'名称未設定',g:$('#x_g').value,
+          gym:gy?gy.value:(ex.gym||''),bw:$('#x_bw').checked,c};
+        delete o.inc; delete o.repMin; delete o.repMax;  // 増分kgとレップ帯は廃止
+        if($('#x_wc')&&$('#x_wc').value==='side')o.wc='side'; else delete o.wc;   // 重量の数え方（既定=総重量）
+        if(isNew&&S.ex.some(e=>e.name===o.name&&(e.gym||'')===(o.gym||''))&&
+           !confirm(`「${o.name}${o.gym?' / '+o.gym:''}」は既にあります。同じまま追加しますか？`))return;
+        if(isNew){o.id='u'+Date.now();S.ex.push(o)}else S.ex[i]=o;
+        save();closeSheet();
+        if(isNew&&afterNew){const f=afterNew;afterNew=null;f(o.id);return}
+        render();};
+      const del=$('#x_del'); if(del)del.onclick=()=>{if(confirm('この種目を削除します。過去の記録は残ります。')){S.ex.splice(i,1);save();closeSheet();render()}};
+    });
+}
+
+document.addEventListener('click',e=>{
+  const ga=e.target.closest('[data-gymadd]');
+  if(ga){ const n=prompt('ジム名を入れてください。'); if(n===null)return;
+    const v=n.trim(); if(!v)return;
+    if((S.gyms||[]).includes(v)){alert('すでにあります。');return}
+    (S.gyms=S.gyms||[]).push(v); save(); render(); return}
+  const gd=e.target.closest('[data-gymdel]');
+  if(gd){ const i=+gd.dataset.gymdel;
+    if(confirm(`「${S.gyms[i]}」を候補から外します。種目名は変わりません。`)){S.gyms.splice(i,1);save();render()} return}
+  const x=e.target.closest('[data-x]');
+  if(x&&x.dataset.x==='std'){ const n=addStdEx();
+    alert(n?`${n}種目を追加しました。`:'追加する種目はありませんでした。'); if(n)save(); render(); return}
+  if(x){ openExEdit(x.dataset.x, +x.dataset.i, x.dataset.ng); return}
+  const d=e.target.closest('[data-d]'); if(!d||!['ex','im','rs','dl'].includes(d.dataset.d))return;
+  if(d.dataset.d==='dl'){ prune();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
+    a.download=`plate_${today()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    S.bk=Date.now(); save();   // 最終バックアップ日を記録し、催促を消す
+    if(sheet)closeSheet(); render(); return}
+  if(d.dataset.d==='ex')openSheet(`<h3>記録の書き出し</h3><div class="xs dim" style="margin:4px 0 10px">ファイルとして保存するのが確実です。コピーして保管しても構いません。</div>
+    <button class="btn pri wide" data-d="dl">ファイルとして保存</button><div style="height:12px"></div>
+    <textarea rows="10" id="dx">${esc(JSON.stringify(S))}</textarea><div style="height:10px"></div>
+    <button class="btn wide gh" data-close>閉じる</button>`,()=>$('#dx').select());
+  if(d.dataset.d==='im')openSheet(`<h3>記録の読み込み</h3><div class="xs dim" style="margin:4px 0 10px">今のデータは置き換わります。</div>
+    <input type="file" id="dfile" accept="application/json,.json"><div style="height:10px"></div>
+    <textarea rows="10" id="di" placeholder="または、書き出したテキストを貼り付け"></textarea><div style="height:10px"></div>
+    <button class="btn pri wide" id="di_ok">読み込む</button><div style="height:8px"></div>
+    <button class="btn wide gh" data-close>やめる</button>`,()=>{
+    $('#dfile').onchange=ev=>{const f=ev.target.files[0]; if(!f)return;
+      const rd=new FileReader(); rd.onload=()=>{$('#di').value=rd.result;}; rd.readAsText(f);};
+    $('#di_ok').onclick=()=>{try{const o=JSON.parse($('#di').value);if(!o.ex||!o.logs)throw 0;
+      S=Object.assign(fresh(),o); if((S.v||0)<4) migrate4(); save();closeSheet();render()}catch(err){alert('読み込めませんでした。テキストが途中で切れていないか確認してください。')}}});
+  if(d.dataset.d==='rs'&&confirm('記録・メニュー・目標をすべて消去します。元に戻せません。')){S=fresh();save();render()}
+});
+
+/* ================= sheet ================= */
+/* シートを開いている間は本体をスクロールさせない。position:fixed で固定し、閉じたら元の位置へ戻す。
+   overflow:hidden だけでは iOS のタッチスクロールが背景に抜ける。 */
+let sheetY=0;
+function openSheet(html,after){ closeSheet();
+  sheetY=window.scrollY;
+  const b=document.body.style;
+  b.position='fixed'; b.top=(-sheetY)+'px'; b.left='0'; b.right='0'; b.width='100%';
+  const el=document.createElement('div');el.className='sheet';
+  el.innerHTML=`<div class="in"><div class="grab"><i></i><button class="xbtn" data-close>✕</button></div>${html}</div>`;
+  el.addEventListener('click',ev=>{if(ev.target===el||ev.target.closest('[data-close]'))closeSheet()});
+  document.body.appendChild(el);sheet=el;
+  // 上から下へスワイプで閉じる。中身が一番上まで戻っているときだけ反応する
+  const box=el.querySelector('.in'); let y0=null,dy=0;
+  box.addEventListener('touchstart',ev=>{ y0=box.scrollTop<=0?ev.touches[0].clientY:null; dy=0 },{passive:true});
+  box.addEventListener('touchmove',ev=>{ if(y0==null)return; dy=ev.touches[0].clientY-y0;
+    box.style.transform=dy>0?`translateY(${Math.min(dy,240)}px)`:'' },{passive:true});
+  box.addEventListener('touchend',()=>{ if(y0==null)return;
+    if(dy>80){closeSheet();return}
+    box.style.transition='transform .18s'; box.style.transform='';
+    setTimeout(()=>{ if(box)box.style.transition='' },200); y0=null });
+  if(after)after(); }
+function closeSheet(){ if(!sheet)return;
+  sheet.remove();sheet=null;
+  const b=document.body.style;
+  b.position=''; b.top=''; b.left=''; b.right=''; b.width='';
+  window.scrollTo(0,sheetY); }
+function openPick(cb,group){
+  const pool=group?S.ex.filter(x=>groupOf(x)===group):S.ex;
+  const secs=byGroup(pool);
+  const rows=x=>`<button class="pick" data-pid="${x.id}">${esc(x.name)}${gymChip(x)}<div class="m">${cList(x.c).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join(' / ')}</div></button>`;
+  openSheet(`<h3>${group?group+'の種目を選ぶ':'種目を選ぶ'}</h3><input id="pq" placeholder="名前で絞り込む" style="margin:10px 0">
+    <button class="btn wide" id="pk_new" style="margin-bottom:12px">＋ 新しい種目を作る</button>
+    <div id="pl">${pool.length?(group?pool.map(rows).join(''):secs.map(([g,list])=>`<div class="sect" style="color:${GCOL[g]}">${g}</div>${list.map(rows).join('')}`).join(''))
+      :`<div class="empty">${group?group+'の種目がまだありません。':'種目がありません。'}<br>設定タブの「${group||'各部位'}」から登録してください。</div>`}</div>
+    <div style="height:8px"></div><button class="btn wide gh" data-close>やめる</button>`,()=>{
+    $('#pk_new').onclick=()=>{ afterNew=cb; openExEdit('new','',group||'') };
+    $('#pq').oninput=ev=>{const q=ev.target.value.trim();$('#pl').querySelectorAll('.pick').forEach(b=>b.style.display=!q||b.textContent.includes(q)?'':'none')};
+    $('#pl').addEventListener('click',ev=>{const b=ev.target.closest('[data-pid]');if(b){closeSheet();cb(b.dataset.pid)}});
+  });
+}
+
+/* ================= ホーム画面（Android用manifest。アイコンは<link>と同じものを使う） ================= */
+try{
+  if(document.querySelector('link[rel="manifest"]')) throw 0;   // 配布ビルドは静的manifestを持つ
+  const ic=document.querySelector('link[rel="apple-touch-icon"]').href;
+  const man={name:'Workout Console',short_name:'Console',start_url:'.',scope:'.',display:'standalone',
+    orientation:'portrait',background_color:'#0B0B0C',theme_color:'#0B0B0C',
+    icons:[{src:ic,sizes:'192x192',type:'image/png'}]};
+  document.head.appendChild(Object.assign(document.createElement('link'),
+    {rel:'manifest',href:URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}))}));
+}catch(e){}
+
+/* ================= boot ================= */
+const OLDMAP={'肩':'肩中','背中':'広背','ハム':'ハム臀','臀筋':'ハム臀'};
+function migrate(){
+  S.ex=S.ex.map(e=>{const n=EXDEF.find(x=>x.name===e.name);return n?{...e,c:{...n.c}}:e});
+  S.ex.forEach(e=>{ const c={};
+    for(const k in e.c){ const kk=MUSCLES.includes(k)?k:OLDMAP[k]; if(kk)c[kk]=(c[kk]||0)+e.c[k]; }
+    const t=Object.values(c).reduce((a,b)=>a+b,0);
+    if(t){ for(const k in c)c[k]=Math.round(c[k]/t*100)/100; e.c=c; } else e.c={胸:1};
+  });
+  S.v=3;
+}
+/* v4: 未配置バケツと、週の目標セット数を追加する。
+   既存の週メニューがあれば、その配分をそのまま目標として引き継ぐ（いまの状態から始められる）。*/
+function migrate4(){
+  if(!S.program) S.program={};
+  if(!Array.isArray(S.program.u)) S.program.u=[];
+  if(!S.plan||!S.plan.target){
+    const got=contribPlan(allPlan());
+    const has=MUSCLES.some(k=>(got[k]||0)>0);
+    S.plan={target:{}};
+    MUSCLES.forEach(k=>S.plan.target[k]=has?Math.round(got[k]||0):0);
+  }
+  S.v=4;
+}
+(async()=>{ const saved=await store.get(); S=saved?Object.assign(fresh(),saved):fresh();
+  if(saved&&(saved.v||0)<3) migrate();
+  if((S.v||0)<4) migrate4();
+  delete S.settings;                                                    // バー重量は廃止（片側プレート表示をやめたため）
+  delete S.body;                                                        // 体組成の目標は廃止（記録するのはトレーニングの結果だけ）
+  if(!Array.isArray(S.gyms)) S.gyms=[];                                 // ジム名の候補
+  if(S.plan&&S.plan.target) MUSCLES.forEach(k=>S.plan.target[k]=Math.max(0,Math.round(+S.plan.target[k]||0)));  // 0.5刻みを廃止
+  (S.gyms||[]).forEach(g=>S.ex.forEach(e=>{            // 種目名の末尾に付けたジム名はタグへ移す
+    if(!e.gym&&e.name.endsWith(' '+g)){e.gym=g; e.name=e.name.slice(0,-(g.length+1)).trim()} }));
+  S.ex.forEach(e=>{ if(e.name==='オーバーヘッドプレス') e.name='ミリタリープレス'; });   // 種目名の改称（1RM換算の変換先に合わせた）
+  const RENAME={'脊柱起立筋':'脊柱起立'};                                // 部位名の改称（他の部位に合わせて語尾の「筋」を落とした）
+  for(const o in RENAME){ const nw=RENAME[o];
+    S.ex.forEach(e=>{ if(e.c&&e.c[o]!=null){e.c[nw]=(e.c[nw]||0)+e.c[o]; delete e.c[o]} });
+    if(S.plan&&S.plan.target&&S.plan.target[o]!=null){S.plan.target[nw]=(S.plan.target[nw]||0)+S.plan.target[o]; delete S.plan.target[o]} }
+  // ふくらはぎを部位から削除（単独では鍛えない）。キーを外し残りを正規化。空になった種目（カーフレイズ等）は参照ごと消す
+  S.ex.forEach(e=>{ if(e.c&&e.c['ふくらはぎ']!=null){ delete e.c['ふくらはぎ'];
+    const t=Object.values(e.c).reduce((a,b)=>a+b,0); if(t>0)for(const k in e.c)e.c[k]=Math.round(e.c[k]/t*100)/100; } });
+  if(S.plan&&S.plan.target) delete S.plan.target['ふくらはぎ'];
+  const calfGone=S.ex.filter(e=>!e.c||!Object.keys(e.c).length).map(e=>e.id);
+  if(calfGone.length){
+    S.ex=S.ex.filter(e=>!calfGone.includes(e.id));
+    for(const d in (S.program||{})) if(Array.isArray(S.program[d])) S.program[d]=S.program[d].filter(p=>!calfGone.includes(p.exId));
+    for(const d in (S.logs||{})){ const L=S.logs[d]; if(L&&L.entries)L.entries=L.entries.filter(en=>!calfGone.includes(en.exId)); if(L&&L.skip)L.skip=L.skip.filter(id=>!calfGone.includes(id)); }
+    S.lifts=(S.lifts||[]).filter(g=>!calfGone.includes(g.exId));
+  }
+  S.ex.forEach(e=>{if(e.bw===undefined)e.bw=(e.kind==='bw');    // 器具の指定から自重フラグを引き継ぐ
+    delete e.inc;delete e.repMin;delete e.repMax; for(const k in e.c) if(!(e.c[k]>0)) delete e.c[k]});
+  save();
+  selDate=today(); render(); })();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{      // 新しいSWが主導権を取ったら
+    if(reloaded)return; reloaded=true; location.reload();                // その場で新しい版に差し替える
+  });
+  addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}));
+  document.addEventListener('visibilitychange',()=>{                     // アプリに戻るたびに更新を確認
+    if(!document.hidden) navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
+  });
+}
+</script>
