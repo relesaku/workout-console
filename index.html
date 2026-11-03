@@ -275,7 +275,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='cc91bd80';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='ecbe652b';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
@@ -520,6 +520,7 @@ function vToday(){
   <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
   <div class="xs dim" style="margin:0 0 12px;text-align:center">重量は<b style="color:var(--text)">総重量</b>で入力。<b style="color:var(--text)">「片側」タグ</b>の種目だけ片側（ダンベルは片手）で入れる</div>
   ${body}
+  ${ents.some(e=>setCount(e)>0)?`<button class="btn wide pri" data-act="finday" style="margin:4px 0 14px">今日のトレーニングを完了</button>`:''}
   <div class="card" style="margin-top:2px">
     <div class="rowb"><div><div class="xs dim">この日の総ボリューム</div>
       <div class="num" id="sVol" style="font-size:28px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
@@ -529,11 +530,44 @@ function vToday(){
   </div>
   <div id="crCard">${crCard(cr,sets)}</div>`;
 }
+/* その日のトレーニングを完了：全種目を完了にして、結果シートを出す */
+function finishDay(){
+  const d=selDate, log=S.logs[d]; if(!log||!(log.entries||[]).some(e=>setCount(e)>0))return;
+  const lost=dayLost(log.entries);
+  if(lost&&!confirm(`未集計の行が${lost}行あります（重量か回数が空）。その行は数に入りません。このまま完了しますか？`))return;
+  log.entries.forEach(en=>{ if(setCount(en)>0&&!isFin(en)){en.fin=true;en.finAt=Date.now()} });
+  save(); render(); openDayResult(d);
+}
+function openDayResult(d){
+  const ents=((S.logs[d]||{}).entries)||[];
+  const done=ents.filter(e=>setCount(e)>0);
+  const vol=done.reduce((t,e)=>t+volOf(e),0), sets=done.reduce((t,e)=>t+setCount(e),0), cr=contribLog(done,'sets');
+  const mx=Math.max(1,...MUSCLES.map(k=>cr[k]||0));
+  const muscleRows=MUSCLES.map(k=>({k,v:cr[k]||0})).filter(x=>x.v>=.05).sort((a,b)=>b.v-a.v).map(x=>
+    `<div class="cr"><span class="dim">${x.k}</span><div class="crb"><div class="f" style="width:${x.v/mx*100}%;background:${MCOL[x.k]}"></div></div><span class="v">${r1(x.v)}</span></div>`).join('');
+  const exRows=done.map(en=>{ const ex=exOf(en.exId); if(!ex)return''; const bw=!!ex.bw;
+    const s=doneSets(en).map(x=>`${bw?x.r+'回':x.w+'×'+x.r}${cnt(x)>1?`×${cnt(x)}`:''}`).join(' / ');
+    const past=bestRec(en.exId,d,bw), tmax=Math.max(0,...doneSets(en).map(x=>bw?+x.r:+x.w));
+    const pr=tmax>0&&past&&tmax>(bw?past.r:past.w);   // 過去の最高を超えたときだけ
+    return `<div class="exh"><span class="s" style="flex:1;font-weight:600;color:var(--text)">${esc(ex.name)}${pr?' <span class="chip pr">最高更新</span>':''}</span><span class="e dim">${s}</span></div>`;
+  }).join('');
+  const dt=parse(d);
+  openSheet(`<h3>${d===today()?'今日':`${dt.getMonth()+1}/${dt.getDate()}（${WD[dt.getDay()]}）`}の結果 💪</h3>
+    <div class="rowb" style="margin:14px 0 10px"><div><div class="xs dim">総ボリューム</div>
+      <div class="num" style="font-size:30px">${Math.round(vol).toLocaleString()}<span class="dim" style="font-size:13px"> kg</span></div></div>
+      <div style="text-align:right"><div class="xs dim">セット</div><div class="num" style="font-size:30px">${sets}</div><div class="xs dim">${done.length}種目</div></div></div>
+    ${stackBar(cr)}
+    <div class="sect" style="margin-top:16px">部位別（寄与率換算セット）</div>${muscleRows||'<div class="xs dim">—</div>'}
+    <div class="sect" style="margin-top:16px">種目</div><div class="card" style="padding:4px 12px">${exRows}</div>
+    <div style="height:6px"></div><button class="btn pri wide" data-close>閉じる</button>`);
+}
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-basis]'); if(b){basis=b.dataset.basis;refreshToday();return}
   const d=e.target.closest('[data-date]'); if(d){selDate=d.dataset.date;render();return}
   const a=e.target.closest('[data-act]'); if(!a)return;
   const {act}=a.dataset,ei=+a.dataset.ei,si=+a.dataset.si,log=S.logs[selDate];
+  if(act==='finday'){finishDay();return}                                   // 今日のトレーニングを完了→結果シート
+  if(act==='histpick'){openPick(id=>{histEx=id;render()});return}          // 履歴：種目を検索して選ぶ
   // ×n・✓ は画面を作り直さず、その場だけ更新する（キーボードとフォーカスを保つ）
   if(act==='mult'){ if(lpFired){lpFired=false;return}
     const s=log.entries[ei].sets[si];s.n=cnt(s)>=6?1:cnt(s)+1;save();
@@ -768,10 +802,11 @@ function vHist(){
   logDates().forEach(d=>{ const w=weekStart(d); (weeks[w]=weeks[w]||[]).push(d); });
   const wkeys=Object.keys(weeks).sort().reverse();   // 新しい週が上
   if(!wkeys.length) return `<div class="empty">まだ記録がありません。<br>「今日」タブで記録すると、ここに週ごとにたまっていきます。</div>`;
+  const hx=histEx?exOf(histEx):null;
   const exSel=`<div class="sect">種目別の記録</div>
   <div class="card">
-    <select id="hx"><option value="">種目を選ぶ…</option>${S.ex.map(x=>`<option value="${x.id}"${histEx===x.id?' selected':''}>${esc(x.name)}${x.gym?' / '+esc(x.gym):''}</option>`).join('')}</select>
-    ${histEx?exHistDetail(histEx):'<div class="xs dim" style="margin-top:8px">種目を選ぶと、これまでの記録と推定1RMの推移が出ます。</div>'}
+    <button class="btn wide" data-act="histpick">${hx?`${esc(hx.name)}${hx.gym?' / '+esc(hx.gym):''}　▼`:'種目を検索して選ぶ'}</button>
+    ${histEx?exHistDetail(histEx):'<div class="xs dim" style="margin-top:8px">種目を検索して選ぶと、これまでの記録と推定1RMの推移が出ます。</div>'}
   </div>`;
   return exSel+
   `<div class="sect">週ごとの部位別セット</div>
@@ -932,7 +967,6 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const k=e.target.dataset.tk; if(k!==undefined)e.target.value=t1of(k);   // 空欄で離れたら0を出す
-  if(e.target.id==='hx'){ histEx=e.target.value; render(); }   // 種目別の記録の切替
 });
 
 /* ================= ① 目標 ================= */
