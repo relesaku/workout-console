@@ -59,8 +59,8 @@ main{padding:14px;max-width:640px;margin:0 auto;min-height:calc(100vh - 125px)}
 .btn.pri{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:600}
 .btn.gh{background:transparent}.btn.sm{padding:6px 10px;font-size:13px}
 .btn.wide{width:100%;text-align:center}.btn.danger{color:var(--red);border-color:var(--red-bd)}
-.finday-wrap{text-align:center;margin:2px 0 12px}                   /* 中央寄せの自動幅ピル＝全幅の「種目を追加」と形で区別 */
-.btn.finday{border:1px solid var(--hi-bd);color:var(--text);padding:8px 20px;border-radius:999px}  /* 平常時は控えめ＝誤爆しにくい */
+.finday-wrap{text-align:right;margin:0 0 10px}                      /* 右寄せの小さいピル＝全幅の「種目を追加」と大きさ・位置で区別 */
+.btn.finday{border:1px solid var(--hi-bd);color:var(--text);padding:6px 14px;border-radius:999px;font-size:13px}  /* 小さめ＝控えめで誤爆しにくい */
 .btn.finday.arm{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:700}  /* 2タップ目待ち＝白く点灯 */
 .btn.finday.done{color:var(--dim);border-color:var(--line)}        /* 完了後は控えめ＝結果を見るだけ */
 input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
@@ -279,7 +279,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='d63d2d86';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='d345b083';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
