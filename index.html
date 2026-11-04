@@ -59,8 +59,10 @@ main{padding:14px;max-width:640px;margin:0 auto;min-height:calc(100vh - 125px)}
 .btn.pri{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:600}
 .btn.gh{background:transparent}.btn.sm{padding:6px 10px;font-size:13px}
 .btn.wide{width:100%;text-align:center}.btn.danger{color:var(--red);border-color:var(--red-bd)}
-.btn.finday{border:1px solid var(--hi-bd);color:var(--text)}        /* 平常時は控えめ＝誤爆しにくい */
+.finday-wrap{text-align:center;margin:2px 0 12px}                   /* 中央寄せの自動幅ピル＝全幅の「種目を追加」と形で区別 */
+.btn.finday{border:1px solid var(--hi-bd);color:var(--text);padding:8px 20px;border-radius:999px}  /* 平常時は控えめ＝誤爆しにくい */
 .btn.finday.arm{background:var(--hi);border-color:var(--hi);color:#0B0B0C;font-weight:700}  /* 2タップ目待ち＝白く点灯 */
+.btn.finday.done{color:var(--dim);border-color:var(--line)}        /* 完了後は控えめ＝結果を見るだけ */
 input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--hi);outline-offset:1px}
 label.f{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin:0 0 4px;font-family:var(--disp);font-weight:600}
@@ -277,7 +279,7 @@ const TPL={days:{
  6:['デッドリフト:3','ラットプルダウン:4','ワンハンドダンベルロー:4','シーテッドロー:3','ハンギングレッグレイズ:3'],
  0:[]}};
 
-const BUILD='c25f4597';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
+const BUILD='d63d2d86';   // build-app.ps1 が実際の識別子に置き換える（未ビルドなら未置換のまま）
 
 /* ================= state ================= */
 let S=null,tab='today',selDate=null,sheet=null,lastTab=null,basis='sets',wstep=1,t1mode='now';
@@ -520,7 +522,10 @@ function vToday(){
   ${d>today()?`<div class="tip warn"><b>未来の日付です（${d.slice(5).replace('-','/')}）。</b><br>今日の記録は日付をタップして戻してください。</div>`:''}
   ${bkOverdue()?`<div class="tip warn" style="margin-bottom:12px">バックアップが${S.bk?bkDays()+'日ありません':'まだありません'}。設定タブから書き出しを。</div>`:''}
   <div id="remCard">${weekLeftCard(weekStart(d),'今週の残り')}</div>
-  ${ents.some(e=>setCount(e)>0)?`<button class="btn wide finday" data-act="finday" style="margin:0 0 10px">今日のトレーニングを完了</button>`:''}
+  ${(()=>{const dn=ents.filter(e=>setCount(e)>0); if(!dn.length)return'';
+    return dn.every(isFin)
+      ? `<div class="finday-wrap"><button class="btn finday done" data-act="dayresult">✓ 今日の結果を見る</button></div>`   // 全種目完了済み＝結果を見るだけ
+      : `<div class="finday-wrap"><button class="btn finday" data-act="finday">今日のトレーニングを完了</button></div>`;})()}
   <button class="btn wide" data-act="pickex" style="margin-bottom:8px">＋ 種目を追加</button>
   <div class="xs dim" style="margin:0 0 12px;text-align:center">重量は<b style="color:var(--text)">総重量</b>で入力。<b style="color:var(--text)">「片側」タグ</b>の種目だけ片側（ダンベルは片手）で入れる</div>
   ${body}
@@ -575,6 +580,7 @@ document.addEventListener('click',e=>{
   const d=e.target.closest('[data-date]'); if(d){selDate=d.dataset.date;render();return}
   const a=e.target.closest('[data-act]'); if(!a)return;
   const {act}=a.dataset,ei=+a.dataset.ei,si=+a.dataset.si,log=S.logs[selDate];
+  if(act==='dayresult'){openDayResult(selDate);return}                     // 完了済み＝結果シートを見るだけ
   if(act==='finday'){                                                      // 今日のトレーニングを完了→結果シート（2段階タップで誤爆防止）
     if(a.dataset.armed){finishDay();return}                                // 2回目＝実行
     a.dataset.armed='1'; a.classList.add('arm'); a.textContent='もう一度タップで完了';
